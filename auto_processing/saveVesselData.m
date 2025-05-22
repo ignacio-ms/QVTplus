@@ -32,7 +32,11 @@ function generateSummaryCenterline(LOCs, data_struct, output_path)
         'Left PCA', 'LPCA';
         'Right PCA', 'RPCA';
         'Left ACA', 'LACA';
-        'Right ACA', 'RACA'
+        'Right ACA', 'RACA';
+        'Straight Sinus', 'STRV';
+        'Sagital Sinus', 'SSSV';
+        'Left Transverse', 'LTSV';
+        'Right Transverse', 'RTSV'
     };
 
     % Initialize the table

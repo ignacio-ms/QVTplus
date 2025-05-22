@@ -327,7 +327,11 @@ function [correspondenceDict, multiQVT] = generateCorrespondenceDict(folderPath,
         'good_lab_3', 'BASI';
         'good_lab_4', 'COMM';
         'good_lab_9', 'COMM';
-        'good_lab_10', 'COMM'
+        'good_lab_10', 'COMM';
+        'good_lab_100', 'SSSV';
+        'good_lab_100', 'LTSV';
+        'good_lab_100', 'RTSV';
+        'good_lab_100', 'STRV'
     };
 
     for i = 1:size(segmentMapping, 1)
