@@ -216,7 +216,7 @@ function loc = extractSTRV(segment_ids, data_struct)
         seg_id = straight_segments(i);
         if seg_id == 1, continue; end
         seg_points = straight_subset(straight_subset(:,4) == seg_id, 1:3);
-        if size(seg_points,1) < min_points, continue; end
+        if size(branchList(branchList(:,4) == seg_id),1) < min_points, continue; end
 
         centered = seg_points - mean(seg_points);
         [~, ~, V] = svd(centered, 'econ');

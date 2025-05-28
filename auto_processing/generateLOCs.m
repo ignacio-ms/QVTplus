@@ -78,7 +78,7 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
                 continue
             end
         end
-        if strcmp(keyName, 'SSSV')
+        if strcmp(keyName, 'STRV')
             STRV = correspondenceDict.STRV;
             STRV_LOC = find_LOCs('extractSTRV',STRV,data_struct);
             try
