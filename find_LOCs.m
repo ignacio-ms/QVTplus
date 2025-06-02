@@ -107,11 +107,11 @@ function loc = extractSSSV(segment_ids, data_struct)
     end
 
 function loc = extractLTSV(segment_ids, data_struct)
-    loc = extractLateralTSV(segment_ids, data_struct, 'left');
+    loc = extractLateralTSV(segment_ids, data_struct, 'right');
 end
 
 function loc = extractRTSV(segment_ids, data_struct)
-    loc = extractLateralTSV(segment_ids, data_struct, 'right');
+    loc = extractLateralTSV(segment_ids, data_struct, 'left');
 end
 
 function loc = extractLateralTSV(segment_ids, data_struct, side)

@@ -95,7 +95,7 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
         end
     end
     %TODO: revisa que L/R esta bien.
-    LOCs = resolveLongVenousSegment(LOCs, data_struct, 'LTSV');
+    LOCs = resolveLongVenousSegment(LOCs, data_struct, 'RTSV');
     LOCs = resolveLongVenousSegment(LOCs, data_struct, 'LTSV');
 
 
@@ -133,6 +133,7 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
             correspondenceDict = rmfield(correspondenceDict, 'LPC2');
         end
     end
+
 end
 
 
