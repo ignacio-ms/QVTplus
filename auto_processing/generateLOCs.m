@@ -47,9 +47,59 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
         LOCs.RICA = [RICA_LOC(1, 4), RICA_LOC(1, 5)];
         LOCs.BASI = [BA_LOC(1, 4), BA_LOC(1, 5)];
     end
-
-    %% Step 2: Process other vessels
+    %% Step 2: Handle venous system
     vesselLabels = fieldnames(correspondenceDict);
+    for i = 1:numel(vesselLabels)
+        keyName = vesselLabels{i};
+        if strcmp(keyName, 'SSSV')
+            SSSV = correspondenceDict.SSSV;
+            SSSV_LOC = find_LOCs('extractSSSV',SSSV,data_struct);
+            try
+                LOCs.SSSV = [SSSV_LOC(1, 4), SSSV_LOC(1, 5)];
+            catch
+                continue
+            end
+        end
+        if strcmp(keyName, 'LTSV')
+            LTSV = correspondenceDict.LTSV;
+            LTSV_LOC = find_LOCs('extractLTSV',LTSV,data_struct);
+            try
+                LOCs.LTSV = [LTSV_LOC(1, 4), LTSV_LOC(1, 5)];
+            catch
+                continue
+            end
+        end
+        if strcmp(keyName, 'RTSV')
+            RTSV = correspondenceDict.RTSV;
+            RTSV_LOC = find_LOCs('extractRTSV',RTSV,data_struct);
+            try
+                LOCs.RTSV = [RTSV_LOC(1, 4), RTSV_LOC(1, 5)];
+            catch
+                continue
+            end
+        end
+        if strcmp(keyName, 'STRV')
+            STRV = correspondenceDict.STRV;
+            STRV_LOC = find_LOCs('extractSTRV',STRV,data_struct);
+            try
+                LOCs.STRV = [STRV_LOC(1, 4), STRV_LOC(1, 5)];
+            catch
+                continue
+            end
+        end
+    end
+
+    if isfield(LOCs, 'SSSV') && isfield(LOCs, 'STRV')
+        if LOCs.SSSV(1) == LOCs.STRV(1)
+            LOCs = rmfield(LOCs, 'STRV');
+        end
+    end
+    %TODO: revisa que L/R esta bien.
+    LOCs = resolveLongVenousSegment(LOCs, data_struct, 'RTSV');
+    LOCs = resolveLongVenousSegment(LOCs, data_struct, 'LTSV');
+
+
+    %% Step 3: Process other vessels
     for i = 1:numel(vesselLabels)
         keyName = vesselLabels{i};
 
@@ -65,7 +115,7 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
         end
     end
 
-    %% Step 3: Handle PCA and secondary PCA logic
+    %% Step 4: Handle PCA and secondary PCA logic
     if isfield(correspondenceDict, 'RPC2') && isfield(LOCs, 'RPCA')
         if ismember(LOCs.('RPCA')(1), correspondenceDict.('RPC2'))
             correspondenceDict.('RPCA') = [correspondenceDict.('RPCA'); correspondenceDict.('RPC2')];
@@ -83,4 +133,64 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
             correspondenceDict = rmfield(correspondenceDict, 'LPC2');
         end
     end
+
 end
+
+
+function LOCs = resolveLongVenousSegment(LOCs, data_struct, fieldName)
+    if isfield(LOCs, 'SSSV') && isfield(LOCs, fieldName)
+        if LOCs.SSSV(1) == LOCs.(fieldName)(1)
+            shared_seg_id = LOCs.SSSV(1);
+            branchList = data_struct.branchList;
+            all_points = branchList(branchList(:, 4) == shared_seg_id, :);
+            n_points = size(all_points, 1);
+
+            step = floor(n_points / 6);
+            parts = cell(6,1);
+            for i = 1:6
+                idx_start = (i-1)*step + 1;
+                if i < 6
+                    idx_end = i*step;
+                else
+                    idx_end = n_points;
+                end
+                parts{i} = all_points(idx_start:idx_end, :);
+            end
+
+            % Most vertical (FIRST 3)
+            best_vert_score = -Inf;
+            best_vert_idx = NaN;
+            for i = 1:3
+                p = parts{i};
+                score = std(p(:,3));
+                if score > best_vert_score
+                    best_vert_score = score;
+                    best_vert_idx = i;
+                end
+            end
+            vert_part = parts{best_vert_idx};
+            mid_idx = floor(size(vert_part,1)/2);
+            SSSV_point = vert_part(mid_idx, :);
+            [~, SSSV_row_idx] = min(sum(abs(branchList - SSSV_point),2));
+            LOCs.SSSV = [shared_seg_id, SSSV_row_idx];
+
+            % Most horizontal (LAST 3)
+            best_horiz_score = Inf;
+            best_horiz_idx = NaN;
+            for i = 4:6
+                p = parts{i};
+                score = std(p(:,3));  % low std(Z) → horizontal
+                if score < best_horiz_score
+                    best_horiz_score = score;
+                    best_horiz_idx = i;
+                end
+            end
+            horiz_part = parts{best_horiz_idx};
+            mid_idx = floor(size(horiz_part,1)/2);
+            target_point = horiz_part(mid_idx, :);
+            [~, row_idx] = min(sum(abs(branchList - target_point),2));
+            LOCs.(fieldName) = [shared_seg_id, row_idx];
+        end
+    end
+end
+
