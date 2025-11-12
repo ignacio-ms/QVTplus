@@ -49,6 +49,65 @@ function [correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, outpu
 
     
     [QVT_path, QVT_mag] = saveQVTseg(output_path, imageData, data_struct);
+
+    %% Save QVT labels as volume
+
+    branchList = data_struct.branchList;
+    x = branchList(:,1);
+    y = branchList(:,2);
+    z = branchList(:,3);
+    val = branchList(:,4);
+
+    % Round coordinates to ensure they are voxel indices
+    x = round(x);
+    y = round(y);
+    z = round(z);
+
+    % Initialize volume using original segmented dimensions
+    volumeSize = size(imageData.Segmented);
+    volume = zeros(volumeSize, 'single');
+
+    % Filter out-of-bounds coordinates (just in case)
+    inBounds = x >= 1 & x <= volumeSize(1) & ...
+               y >= 1 & y <= volumeSize(2) & ...
+               z >= 1 & z <= volumeSize(3);
+    if ~all(inBounds)
+        warning('[Branch Mask Creation] Some coordinates are out of bounds and will be ignored.');
+    end
+    x = x(inBounds);
+    y = y(inBounds);
+    z = z(inBounds);
+    val = val(inBounds);
+
+    % Fill in volume
+    % for i = 1:length(x)
+    %     volume(x(i), y(i), z(i)) = val(i);
+    % end
+    % Linear indices for faster assignment
+    linearIdx = sub2ind(volumeSize, x, y, z);
+    volume(linearIdx) = val;
+
+    % Create a SPM volume header
+    V = struct();
+    V.fname = [output_path '/branch_mask.nii'];
+    V.dim = size(volume);                  % Image dimensions
+    V.dt = [16, 0];                        % Data type: 16 = float32
+    V.mat = eye(4);                        % Affine matrix: identity (voxel space)
+    V.descrip = 'Branch mask from coordinates';
+
+    % Set voxel dimensions
+    V.mat(1,1) = data_struct.VoxDims(1);
+    V.mat(2,2) = data_struct.VoxDims(2);
+    V.mat(3,3) = data_struct.VoxDims(3);
+
+    % Compute and set the new origin (To match QVT_seg and QVT_MAG saved origins)
+    new_origin = (V.dim(1:3) + 1) / 2; % Center of the image
+    V.mat(1:3, 4) = V.mat(1:3, 1:3) * -new_origin'; 
+
+    % Write the volume
+    spm_write_vol(V, volume);
+
+    %%
     
 
     % Step 2: Perform 180-degree flip along the X-axis
@@ -66,7 +125,7 @@ function [correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, outpu
     MIP_image = generateMIP(AP_image, output_path);
 
     % Step 3: Perform SPM registration
-    registeredImagePath = performSPMRegistration(QVT_mag, tofOrigResampled, tofOrigEICABCW);
+    registeredImagePath = performFSLRegistration(QVT_mag, tofOrigResampled, tofOrigEICABCW);
 
     % Step 4: Perform label transfer and create multi-label QVT segmentation
     updatedBinarySegMatrix = transferLabels(registeredImagePath, imageData);
@@ -154,6 +213,32 @@ function [QVT_path, QVT_mag] = saveQVTseg(output_path, imageData, data_struct)
 
     % Display confirmation
     disp(['NIfTI file saved and recentered successfully at: ', QVT_mag]);
+
+    % Additionally save Complex Difference image
+    dataMatrix = imageData.CD;
+    V = struct();
+    V.fname = fullfile(output_path, 'QVT_CD.nii');
+    V.dim = size(dataMatrix);
+    V.dt = [spm_type('float32'), 0];
+    V.mat = eye(4);
+
+    % Set voxel dimensions
+    V.mat(1,1) = data_struct.VoxDims(1);
+    V.mat(2,2) = data_struct.VoxDims(2);
+    V.mat(3,3) = data_struct.VoxDims(3);
+
+    % Compute and set the new origin
+    new_origin = (V.dim(1:3) + 1) / 2; % Center of the image
+    V.mat(1:3, 4) = V.mat(1:3, 1:3) * -new_origin';
+
+    % Write the volume with the recentered transformation
+    spm_write_vol(V, dataMatrix);
+
+    % Output the path to the saved file
+    QVT_CD = V.fname;
+
+    % Display confirmation
+    disp(['NIfTI file saved and recentered successfully at: ', QVT_CD]);
 end
 
 
@@ -216,6 +301,29 @@ function registeredImagePath = performSPMRegistration(QVT_path, sourceImagePath,
     registeredImagePath = fullfile(folder, ['r_', baseName, ext]);
 end
 
+function registeredImagePath = performFSLRegistration(QVT_path, sourceImagePath, eICABImagePath)
+    % first, flip sourceImage and eICABImage
+    sourceImagePath = flipImage180(sourceImagePath);
+    eICABImagePath = flipImage180(eICABImagePath);
+    setenv("FSLOUTPUTTYPE", "NIFTI");
+
+    % Perform FSL-based registration to align eICAB and QVT masks
+    flirtCmd = sprintf('flirt -in %s -ref %s -omat %s -cost normmi -searchcost normmi -dof 6', ...
+        sourceImagePath, QVT_path, fullfile(fileparts(eICABImagePath), 'transform.mat'));
+    disp(flirtCmd)
+    system(flirtCmd);
+
+    % Define the registered image path
+    [folder, baseName, ext] = fileparts(eICABImagePath);
+    registeredImagePath = fullfile(folder, ['r_', baseName, ext]);
+    
+    % Apply the transformation to the eICAB image
+    applyCmd = sprintf('flirt -in %s -ref %s -applyxfm -init %s -out %s -interp nearestneighbour', ...
+        eICABImagePath, QVT_path, fullfile(fileparts(eICABImagePath), 'transform.mat'), ...
+        registeredImagePath);
+    system(applyCmd);
+end
+
 function updatedBinarySegMatrix = transferLabels(registeredImagePath, imageData)
     % Perform label transfer from eICAB to QVT
     V = spm_vol(registeredImagePath);
@@ -263,143 +371,11 @@ function saveMultiLabelQVT(updatedBinarySegMatrix, output_path, data_struct)
     V.mat(2, 2) = data_struct.VoxDims(2);
     V.mat(3, 3) = data_struct.VoxDims(3);
 
+    % Compute and set the new origin (To match QVT_seg and QVT_MAG saved origins)
+    new_origin = (V.dim(1:3) + 1) / 2; % Center of the image
+    V.mat(1:3, 4) = V.mat(1:3, 1:3) * -new_origin'; 
+
     spm_write_vol(V, updatedBinarySegMatrix);
-end
-
-function [correspondenceDict, multiQVT] = generateCorrespondenceDict(folderPath, data_struct)
-    % Generate a correspondence dictionary between eICAB labels and QVT labels
-    %
-    % Inputs:
-    % - folderPath: Path to the folder containing QVT and multilabel files
-    % - data_struct: Structure containing vessel and branch information
-    %
-    % Outputs:
-    % - correspondenceDict: Dictionary mapping QVT labels to eICAB labels
-
-    % Load multi-label segmentation
-    multiQVT = spm_read_vols(spm_vol(fullfile(folderPath, 'multilabel_QVTseg.nii')));
-
-    % Initialize correspondence dictionary
-    correspondenceDict = struct();
-    positions = data_struct.branchList(:, 1:3);  
-    labels = data_struct.branchList(:, 4);
-
-    % Find all vessel segments from QVT that belong to each of the eICAB labels
-    for i = 1:size(positions, 1)
-        x = round(positions(i, 1));
-        y = round(positions(i, 2));
-        z = round(positions(i, 3));
-
-        if x > 0 && y > 0 && z > 0 && ...
-           x <= size(multiQVT, 1) && y <= size(multiQVT, 2) && z <= size(multiQVT, 3)
-            good_lab = multiQVT(x, y, z);
-        else
-            % Skip if the position is out of bounds in multiQVT
-            continue;
-        end
-
-        if good_lab == 0
-            continue; % Skip if no label found
-        end
-
-        fieldName = sprintf('good_lab_%d', good_lab);
-        if ~isfield(correspondenceDict, fieldName)
-            correspondenceDict.(fieldName) = [];
-        end
-        correspondenceDict.(fieldName) = [correspondenceDict.(fieldName); labels(i)];
-    end
-
-    % Resolve multiple QVT labels mapped to the same eICAB label
-    labelOccurrences = correspondence_funcs('buildLabelOccurrences', correspondenceDict);
-    correspondenceDict = correspondence_funcs('resolveLabelMappings', correspondenceDict, labelOccurrences);
-
-    % Remove duplicate entries within each key
-    correspondenceDict = correspondence_funcs('removeDuplicateEntries', correspondenceDict);
-
-    % Rename keys to their actual vessel names
-    segmentMapping = {
-        'good_lab_1', 'LICA';
-        'good_lab_2', 'RICA';
-        'good_lab_7', 'LMCA';
-        'good_lab_8', 'RMCA';
-        'good_lab_5', 'LACA';
-        'good_lab_6', 'RACA';
-        'good_lab_3', 'BASI';
-        'good_lab_4', 'COMM';
-        'good_lab_9', 'COMM';
-        'good_lab_10', 'COMM';
-        'good_lab_100', 'SSSV';
-        'good_lab_100', 'LTSV';
-        'good_lab_100', 'RTSV';
-        'good_lab_100', 'STRV'
-    };
-
-    for i = 1:size(segmentMapping, 1)
-        goodLab = segmentMapping{i, 1};
-        targetKey = segmentMapping{i, 2};
-        if isfield(correspondenceDict, goodLab)
-            if strcmp(targetKey, 'COMM')
-                if ~isfield(correspondenceDict, 'COMM')
-                    correspondenceDict.COMM = [];
-                end
-                correspondenceDict.COMM = [correspondenceDict.COMM; correspondenceDict.(goodLab)];
-            else
-                correspondenceDict.(targetKey) = correspondenceDict.(goodLab);
-            end
-        end
-    end
-
-    % Process PCA segments
-    segmentLabels = {'good_lab_13', 'good_lab_14', 'good_lab_15', 'good_lab_16'};
-    segments = cell(size(segmentLabels));
-    maxLengths = zeros(size(segmentLabels));
-
-    for i = 1:numel(segmentLabels)
-        if isfield(correspondenceDict, segmentLabels{i})
-            segments{i} = correspondenceDict.(segmentLabels{i});
-            if isempty(segments{i})
-                maxLengths(i) = 0;
-            else
-                maxLengths(i) = max(arrayfun(@(j) sum(data_struct.branchList(:, 4) == j), segments{i}));
-            end
-        else
-            segments{i} = [];
-            maxLengths(i) = 0;
-        end
-    end
-
-    if maxLengths(3) > maxLengths(1)
-        correspondenceDict.LPCA = [segments{1}; segments{3}];
-    else
-        correspondenceDict.LPCA = segments{1};
-        correspondenceDict.LPC2 = segments{3};
-    end
-
-    if maxLengths(4) > maxLengths(2)
-        correspondenceDict.RPCA = [segments{2}; segments{4}];
-    else
-        correspondenceDict.RPCA = segments{2};
-        correspondenceDict.RPC2 = segments{4};
-    end
-
-    if isfield(correspondenceDict, 'COMM')
-        correspondenceDict.COMM = unique(correspondenceDict.COMM);
-    else
-        correspondenceDict.COMM = [];
-    end
-
-    % Remove unused good_lab keys
-    allFields = fieldnames(correspondenceDict);
-    fieldsToRemove = allFields(startsWith(allFields, 'good_lab_'));
-    correspondenceDict = rmfield(correspondenceDict, fieldsToRemove);
-
-    % Remove empty fields
-    fieldNames = fieldnames(correspondenceDict);
-    for i = 1:numel(fieldNames)
-        if isempty(correspondenceDict.(fieldNames{i}))
-            correspondenceDict = rmfield(correspondenceDict, fieldNames{i});
-        end
-    end
 end
 
 function [MIP_image] = generateMIP(AP_image, output_path)

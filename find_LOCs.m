@@ -107,11 +107,11 @@ function loc = extractSSSV(segment_ids, data_struct)
     end
 
 function loc = extractLTSV(segment_ids, data_struct)
-    loc = extractLateralTSV(segment_ids, data_struct, 'right');
+    loc = extractLateralTSV(segment_ids, data_struct, 'left');
 end
 
 function loc = extractRTSV(segment_ids, data_struct)
-    loc = extractLateralTSV(segment_ids, data_struct, 'left');
+    loc = extractLateralTSV(segment_ids, data_struct, 'right');
 end
 
 function loc = extractLateralTSV(segment_ids, data_struct, side)
@@ -216,7 +216,7 @@ function loc = extractSTRV(segment_ids, data_struct)
         seg_id = straight_segments(i);
         if seg_id == 1, continue; end
         seg_points = straight_subset(straight_subset(:,4) == seg_id, 1:3);
-        if size(branchList(branchList(:,4) == seg_id),1) < min_points, continue; end
+        if size(seg_points,1) < min_points, continue; end
 
         centered = seg_points - mean(seg_points);
         [~, ~, V] = svd(centered, 'econ');

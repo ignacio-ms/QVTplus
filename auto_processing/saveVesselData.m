@@ -165,10 +165,8 @@ function saveVesselImages(vesselName, vesselNumber, pointOfInterest, data_struct
     end
 
     % Save montage as an image
-    fig = figure('Visible', 'off');
     montage(FinalImage, 'Size', [subL, 4]);
-    
     savename = sprintf('%s_Vessel_%d_Point_%d_Slicesview.jpg', vesselName, vesselNumber, pointOfInterest);
-    saveas(fig, fullfile(output_path, savename));
-    close(fig);
+    saveas(gcf, fullfile(output_path, savename));
+    close(gcf);
 end

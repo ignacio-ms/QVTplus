@@ -1,0 +1,341 @@
+<deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
+  <configuration build-checksum="32067480" file="/home/afernandezpe/Git/QVTplus/QVTplus.prj" location="/home/afernandezpe/Git/QVTplus" name="QVTplus" preferred-package-location="/home/afernandezpe/Git/QVTplus/docker" preferred-package-type="package.type.install" target="target.ezdeploy.standalone" target-name="Application Compiler">
+    <param.appname>QVTplus</param.appname>
+    <param.icon />
+    <param.icons />
+    <param.version>1.0</param.version>
+    <param.authnamewatermark />
+    <param.email />
+    <param.company />
+    <param.summary />
+    <param.description />
+    <param.screenshot />
+    <param.guid />
+    <param.installpath.string>/QVTplus/</param.installpath.string>
+    <param.installpath.combo>option.installpath.userlocal</param.installpath.combo>
+    <param.logo />
+    <param.install.notes />
+    <param.target.install.notes>In the following directions, replace MR/R2023a by the directory on the target machine where MATLAB is installed, or MR by the directory where the MATLAB Runtime is installed.
+
+(1) Set the environment variable XAPPLRESDIR to this value:
+
+MR/R2023a/X11/app-defaults
+
+
+(2) If the environment variable LD_LIBRARY_PATH is undefined, set it to the following:
+
+MR/R2023a/runtime/glnxa64:MR/R2023a/bin/glnxa64:MR/R2023a/sys/os/glnxa64:MR/R2023a/sys/opengl/lib/glnxa64
+
+If it is defined, set it to the following:
+
+${LD_LIBRARY_PATH}:MR/R2023a/runtime/glnxa64:MR/R2023a/bin/glnxa64:MR/R2023a/sys/os/glnxa64:MR/R2023a/sys/opengl/lib/glnxa64</param.target.install.notes>
+    <param.intermediate>${PROJECT_ROOT}/QVTplus/for_testing</param.intermediate>
+    <param.files.only>${PROJECT_ROOT}/QVTplus/for_redistribution_files_only</param.files.only>
+    <param.output>${PROJECT_ROOT}/docker</param.output>
+    <param.logdir>${PROJECT_ROOT}/QVTplus</param.logdir>
+    <param.enable.clean.build>false</param.enable.clean.build>
+    <param.user.defined.mcr.options>-R -nodesktop -R -nodisplay</param.user.defined.mcr.options>
+    <param.target.type>subtarget.standalone</param.target.type>
+    <param.support.packages />
+    <param.web.mcr>false</param.web.mcr>
+    <param.package.mcr>true</param.package.mcr>
+    <param.no.mcr>false</param.no.mcr>
+    <param.web.mcr.name>MyAppInstaller_web</param.web.mcr.name>
+    <param.package.mcr.name>MyAppInstaller_mcr</param.package.mcr.name>
+    <param.no.mcr.name>MyAppInstaller_app</param.no.mcr.name>
+    <param.windows.command.prompt>false</param.windows.command.prompt>
+    <param.create.log>false</param.create.log>
+    <param.log.file />
+    <param.native.matlab>false</param.native.matlab>
+    <param.checkbox>false</param.checkbox>
+    <param.example />
+    <param.help.text>Syntax 
+	 QVTplus -? 
+	 QVTplus path_to_data eicab_path output_path 
+ Input Arguments 
+	 -?  print help on how to use the application 
+	 path_to_data eicab_path output_path  input arguments</param.help.text>
+    <unset>
+      <param.icon />
+      <param.icons />
+      <param.version />
+      <param.authnamewatermark />
+      <param.email />
+      <param.company />
+      <param.summary />
+      <param.description />
+      <param.screenshot />
+      <param.guid />
+      <param.installpath.string />
+      <param.logo />
+      <param.install.notes />
+      <param.intermediate />
+      <param.files.only />
+      <param.logdir />
+      <param.enable.clean.build />
+      <param.target.type />
+      <param.support.packages />
+      <param.no.mcr />
+      <param.web.mcr.name />
+      <param.package.mcr.name />
+      <param.no.mcr.name />
+      <param.windows.command.prompt />
+      <param.create.log />
+      <param.log.file />
+      <param.native.matlab />
+      <param.checkbox />
+      <param.example />
+    </unset>
+    <fileset.main>
+      <file>${PROJECT_ROOT}/auto_processing/launchProcessAuto.m</file>
+    </fileset.main>
+    <fileset.resources>
+      <file>${PROJECT_ROOT}/poi_library</file>
+    </fileset.resources>
+    <fileset.package />
+    <fileset.depfun>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/Contents.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/cat.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/ctranspose.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/disp.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/display.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/double.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/end.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/fieldnames.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/file_array.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/full.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/horzcat.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/initialise.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/isnan.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/length.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/loadobj.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/ndims.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/numel.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/numeric.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/permute.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/datatypes.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/dim.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/dtype.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/file2mat.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/file2mat.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/fname.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/init.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/init.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/mat2file.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/mat2file.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/mystruct.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/offset.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/permission.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/resize_scales.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/scl_inter.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/private/scl_slope.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/reshape.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/size.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/subsasgn.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/subsref.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/transpose.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@file_array/vertcat.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/Contents.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/display.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/export.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/fieldnames.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/gifti.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/isfield.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/plot.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/base64decode.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/base64encode.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/getdict.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/isintent.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/mvtk_read.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/mvtk_write.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/mz3_read.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/mz3_write.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/obj_read.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/off_read.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/ply_read.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/read_freesurfer_file.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/read_gifti_file.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/stl_read.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/zstream.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/private/zstream.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/save.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/saveas.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/struct.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/subsasgn.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@gifti/subsref.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/Contents.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/cifti.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/create.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/disp.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/display.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/fieldnames.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/nifti.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/M2Q.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/Q2M.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/decode_qform0.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/empty_hdr.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/encode_qform0.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/findindict.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/getdict.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/mayo2nifti1.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/mayostruc.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/nifti1struc.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/nifti2struc.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/nifti_stats.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/niftistruc.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/read_extras.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/read_hdr.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/read_hdr_raw.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/write_extras.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/private/write_hdr_raw.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/structn.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/subsasgn.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@nifti/subsref.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/Contents.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/add.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/attributes.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/branch.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/char.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/children.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/convert.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/copy.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/delete.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/display.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/editor.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/find.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/flush.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/get.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/getfilename.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/isfield.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/length.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/move.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/parent.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/private/xml_findstr.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/private/xml_findstr.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/private/xml_parser.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/root.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/save.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/set.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/setfilename.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/view.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/@xmltree/xmltree.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_DesMtx.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_FcUtil.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_Menu.fig</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_Menu.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_SpUtil.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_Welcome.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_authors.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_browser.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_bsplinc.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_bsplinc.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_check_installation.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_check_orientations.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_check_version.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_clf.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_colourmap.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_conman.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_create_vol.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_defaults.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_existfile.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_existfile.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_figure.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_file.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_file_template.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_fileparts.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_flip_analyze_images.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_get_defaults.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_help.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_input.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_jobman.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_jsonread.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_jsonread.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_jsonwrite.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_matrix.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_mesh_adjacency.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_mesh_detect.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_mesh_label.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_mesh_normals.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_platform.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_print.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_read_vols.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_select.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_slice_vol.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_slice_vol.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_sp.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_toolbox.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_type.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_unlink.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_unlink.mexa64</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_update.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_vol.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_vol_nifti.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_write_plane.m</file>
+      <file>/home/afernandezpe/Documents/MATLAB/spm12/spm_write_vol.m</file>
+      <file>${PROJECT_ROOT}/auto_processing/generateLOCs.m</file>
+      <file>${PROJECT_ROOT}/auto_processing/generateQVTplus.m</file>
+      <file>${PROJECT_ROOT}/auto_processing/loadPreprocessedData.m</file>
+      <file>${PROJECT_ROOT}/auto_processing/performLabelTransfer.m</file>
+      <file>${PROJECT_ROOT}/auto_processing/saveVesselData.m</file>
+      <file>${PROJECT_ROOT}/correspondence_funcs.m</file>
+      <file>${PROJECT_ROOT}/find_LOCs.m</file>
+      <file>${PROJECT_ROOT}/functions/import/loadDCM.m</file>
+      <file>${PROJECT_ROOT}/functions/import/loadNII_auto.m</file>
+      <file>${PROJECT_ROOT}/functions/import/load_dat.m</file>
+      <file>${PROJECT_ROOT}/functions/import/retFlowFolders.m</file>
+      <file>${PROJECT_ROOT}/functions/import/shuffleDCM.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/calc_angio.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/centerlineX.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/centerline_new.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/create_planes.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/evaluate_poly.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/feature_extraction.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/interp_vol_to_planes.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/paramMap_params_kmeans.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/paramMap_params_threshS.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/segment_cross_section_ExternalSeg.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/segment_cross_section_thresh.m</file>
+      <file>${PROJECT_ROOT}/functions/initialQVTprocessing/slidingThreshold.m</file>
+      <file>${PROJECT_ROOT}/functions/interaction/unattended_background_phase_correction.m</file>
+      <file>${PROJECT_ROOT}/functions/saving/saveQVTData.m</file>
+      <file>${PROJECT_ROOT}/functions/saving/xlwrite.m</file>
+      <file>${PROJECT_ROOT}/label_transfer.m</file>
+      <file>${PROJECT_ROOT}/processMainVessels.m</file>
+      <file>${MATLAB_ROOT}/toolbox/local/userpath.m</file>
+    </fileset.depfun>
+    <build-deliverables>
+      <file location="${PROJECT_ROOT}/QVTplus/for_testing" name="QVTplus" optional="false">/home/afernandezpe/Git/QVTplus/QVTplus/for_testing/QVTplus</file>
+      <file location="${PROJECT_ROOT}/QVTplus/for_testing" name="run_QVTplus.sh" optional="false">/home/afernandezpe/Git/QVTplus/QVTplus/for_testing/run_QVTplus.sh</file>
+      <file location="${PROJECT_ROOT}/QVTplus/for_testing" name="readme.txt" optional="true">/home/afernandezpe/Git/QVTplus/QVTplus/for_testing/readme.txt</file>
+      <file location="${PROJECT_ROOT}/QVTplus/for_testing" name="splash.png" optional="false">/home/afernandezpe/Git/QVTplus/QVTplus/for_testing/splash.png</file>
+    </build-deliverables>
+    <workflow />
+    <matlab>
+      <root>/usr/local/MATLAB/R2023a</root>
+      <toolboxes>
+        <toolbox name="neuralnetwork" />
+      </toolboxes>
+      <toolbox>
+        <neuralnetwork>
+          <enabled>true</enabled>
+        </neuralnetwork>
+      </toolbox>
+    </matlab>
+    <platform>
+      <unix>true</unix>
+      <mac>false</mac>
+      <windows>false</windows>
+      <win2k>false</win2k>
+      <winxp>false</winxp>
+      <vista>false</vista>
+      <linux>true</linux>
+      <solaris>false</solaris>
+      <osver>6.12.27-amd64</osver>
+      <os32>false</os32>
+      <os64>true</os64>
+      <arch>glnxa64</arch>
+      <matlab>true</matlab>
+    </platform>
+  </configuration>
+</deployment-project>

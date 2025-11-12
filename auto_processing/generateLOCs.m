@@ -133,7 +133,6 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
             correspondenceDict = rmfield(correspondenceDict, 'LPC2');
         end
     end
-
 end
 
 
