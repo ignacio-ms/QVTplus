@@ -771,7 +771,7 @@ function displayPointInfo(fig, rowIdx)
 end
 
 function updateCrossSections(fig, rowIdx)
-    appData = guidata(fig);
+    appData = guidata(fig);¢
     imdim = appData.imdim;
     mask = reshape(appData.segmentFull(rowIdx,:), imdim, imdim);
     mag = reshape(appData.MAGcrossection(rowIdx,:), imdim, imdim);
