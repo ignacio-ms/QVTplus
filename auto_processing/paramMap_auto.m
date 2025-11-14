@@ -5,32 +5,43 @@ clear; clc;
 % addpath('/home/imarcoss/MATLAB Add-Ons/SWR/spm12-r7771');
 % savepath;
 
-% Define paths
-% path_to_data = 'E:\PhD\data\CNIC\BMRI198894\';
-% output_path = 'C:\Users\u149879\Desktop\autoQVT';
+% Define base paths
 patient_id = 'PESA10758400_A';
-path_to_data = fullfile('/home/imarcoss/NetVolumes/Tierra/LAB_FSC/LAB/PERSONAL/imarcoss/PESA-Brain/DATA/Nifti', patient_id, '4DFlow');
-% path_to_data = '/data_local/BioIT_Data/PESA-Brain/AlbertoExported/PESA10758400/scans';
-% output_path = '/home/imarcoss/NetVolumes/Tierra/LAB_FSC/LAB/PERSONAL/imarcoss/PESA-Brain/Results/QVTPlus/PESA10758400/';
-output_path = fullfile('/data_local/BioIT_Data/PESA-Brain/RESULTS', patient_id);
-% output_path = '/data_local/BioIT_Data/PESA-Brain/RESULTS/PESA10758400_alberto';
+base_path = '/home/imarcoss/NetVolumes/Tierra/LAB_VF-ICH/LAB/MCC LAB/_IgnacioMarcos/LabVF/PESA-Brain/';
 
-% Load data
-[data_struct, imageData] = loadPreprocessedData(path_to_data, output_path);
+if strcmp(patient_id, 'all')
+    dir_listing = dir(fullfile(base_path, 'DATA/Nifti'));
+    dir_listing = dir_listing([dir_listing.isdir]);
+    patient_ids = {dir_listing.name};
+    patient_ids = patient_ids(~ismember(patient_ids, {'.', '..'}));
+else
+    patient_ids = {patient_id};
+end
 
-% Perform label transfer and preprocessing
-% eICAB_path = 'E:\PhD\data\processed\QVT\BMRI198894';
-% eICAB_path = fullfile('/home/imarcoss/NetVolumes/Tierra/LAB_FSC/LAB/PERSONAL/imarcoss/PESA-Brain/Results/Segmentation/eICAB', patient_id);
-eICAB_path = fullfile('/home/imarcoss/NetVolumes/Tierra/LAB_FSC/LAB/PERSONAL/imarcoss/PESA-Brain/DATA/Nifti', patient_id, 'eICAB');
-[correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, output_path, imageData, path_to_data, data_struct);
+for idx = 1:numel(patient_ids)
+    current_patient_id = patient_ids{idx};
+    disp(['--------------------------------']);
+    disp(['Processing patient: ' current_patient_id]);
+    path_to_data = fullfile(base_path, 'DATA/Nifti', current_patient_id, '4DFlow')
+    eICAB_path = fullfile(base_path, 'RESULTS/eICAB', current_patient_id)
+    % output_path = fullfile(base_path, 'RESULTS/QVTPlus', current_patient_id)
+    output_path = fullfile('/data_local/LabVF/PESA-Brain/RESULTS/', current_patient_id)
+    mkdir(output_path);
+    disp(['--------------------------------']);
 
-% Generate LOCs
-[correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDict, multiQVT);
+    % Load data
+    [data_struct, imageData] = loadPreprocessedData(path_to_data, output_path);
 
-% Save vessel-specific data automatically
-saveVesselData(LOCs, data_struct, output_path);
+    % Perform label transfer and preprocessing
+    [correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, output_path, imageData, path_to_data, data_struct);
 
-%Save data for qvt+
-generateQVTplus(correspondenceDict, LOCs, output_path)
+    % Generate LOCs
+    [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDict, multiQVT);
 
-disp('Processing completed successfully.');
+    % Save vessel-specific data automatically
+    saveVesselData(LOCs, data_struct, output_path);
+
+    %Save data for qvt+
+    generateQVTplus(correspondenceDict, LOCs, output_path)
+    disp(['Processing completed successfully for patient: ' current_patient_id]);
+end
