@@ -91,6 +91,44 @@ function paramMap_GUI()
         multiQVTvol = [];
     end
 
+    % Load auxiliary TOF overlays if present
+    tofPath = fullfile(outputDir, 'r_TOF_resampled.nii');
+    tofVolume = [];
+    tofMat = [];
+    tofThresh = [];
+    if exist(tofPath, 'file')
+        try
+            tofHeader = spm_vol(tofPath);
+            tofVolume = spm_read_vols(tofHeader);
+            tofMat = tofHeader.mat;
+            voxValues = tofVolume(isfinite(tofVolume));
+            if ~isempty(voxValues)
+                pLow = prctile(voxValues, 70);
+                pHigh = prctile(voxValues, 99.5);
+                if pLow == pHigh
+                    pLow = min(voxValues);
+                    pHigh = max(voxValues);
+                end
+                tofThresh = [pLow, pHigh];
+            end
+        catch ME
+            warning('paramMap_GUI:LoadTOF','Failed to load r_TOF_resampled.nii: %s', ME.message);
+            tofVolume = [];
+        end
+    end
+
+    atlasPath = fullfile(outputDir, 'r_TOF_eICAB_CW.nii');
+    atlasVolume = [];
+    if exist(atlasPath, 'file')
+        try
+            atlasHeader = spm_vol(atlasPath);
+            atlasVolume = spm_read_vols(atlasHeader);
+        catch ME
+            warning('paramMap_GUI:LoadAtlas','Failed to load r_TOF_eICAB_CW.nii: %s', ME.message);
+            atlasVolume = [];
+        end
+    end
+
     [surfacePatches, scatterAll, scatterSel] = plotCenterlines(app.axes, data_struct, correspondenceDict, multiQVTvol);
     locPlots = plotLocMarkers(app.axes, locInfo);
     cursorMarker = scatter3(app.axes, NaN, NaN, NaN, ...
@@ -108,12 +146,27 @@ function paramMap_GUI()
                                   'PickableParts', 'none', ...
                                   'Visible', 'off');
     end
+    planePatch = patch(app.axes, ...
+                       'Faces', [1 2 3 4], ...
+                       'Vertices', zeros(4,3), ...
+                       'FaceColor', [1 0.2 0.2], ...
+                       'FaceAlpha', 0.5, ...
+                       'EdgeColor', 'none', ...
+                       'Visible', 'off', ...
+                       'HitTest', 'off', ...
+                       'PickableParts', 'none');
     planeNormal = quiver3(app.axes, NaN, NaN, NaN, 0, 0, 0, ...
                           'Color', [1 0.45 0.2], ...
                           'LineWidth', 2.0, ...
                           'AutoScale', 'off', ...
                           'HitTest', 'off', ...
                           'Visible', 'off');
+    planeNormalTip = scatter3(app.axes, NaN, NaN, NaN, ...
+                              40, [1 0.25 0.25], 'filled', ...
+                              'MarkerEdgeColor', 'k', ...
+                              'Visible', 'off', ...
+                              'HitTest', 'off', ...
+                              'PickableParts', 'none');
 
     colormap(app.axes, parula);
 
@@ -245,6 +298,103 @@ function paramMap_GUI()
                             'FontSize', 8, ...
                             'Callback', @(~,~) resetView(app.figure));
 
+    % Group 5: TOF / Atlas overlays
+    tofCheckbox = uicontrol('Style', 'checkbox', ...
+                            'Parent', app.figure, ...
+                            'Units', 'normalized', ...
+                            'Position', [0.66 0.76 0.12 0.026], ...
+                            'String', 'Show TOF overlay', ...
+                            'Value', 0, ...
+                            'ForegroundColor', [1 1 1], ...
+                            'BackgroundColor', [0 0 0], ...
+                            'FontSize', 8, ...
+                            'HorizontalAlignment', 'left');
+    uicontrol('Style', 'text', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
+              'Position', [0.79 0.76 0.05 0.024], ...
+              'String', 'TOF Min', ...
+              'BackgroundColor', [0.94 0.94 0.94], ...
+              'FontSize', 8, ...
+              'HorizontalAlignment', 'left');
+    tofMinEdit = uicontrol('Style', 'edit', ...
+                           'Parent', app.figure, ...
+                           'Units', 'normalized', ...
+                           'Position', [0.79 0.734 0.05 0.028], ...
+                           'BackgroundColor', [1 1 1], ...
+                           'FontSize', 8);
+    uicontrol('Style', 'text', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
+              'Position', [0.85 0.76 0.05 0.024], ...
+              'String', 'TOF Max', ...
+              'BackgroundColor', [0.94 0.94 0.94], ...
+              'FontSize', 8, ...
+              'HorizontalAlignment', 'left');
+    tofMaxEdit = uicontrol('Style', 'edit', ...
+                           'Parent', app.figure, ...
+                           'Units', 'normalized', ...
+                           'Position', [0.85 0.734 0.05 0.028], ...
+                           'BackgroundColor', [1 1 1], ...
+                           'FontSize', 8);
+
+    atlasCheckbox = uicontrol('Style', 'checkbox', ...
+                              'Parent', app.figure, ...
+                              'Units', 'normalized', ...
+                              'Position', [0.91 0.76 0.10 0.026], ...
+                              'String', 'Show Atlas', ...
+                              'Value', 0, ...
+                              'ForegroundColor', [1 1 1], ...
+                              'BackgroundColor', [0 0 0], ...
+                              'FontSize', 8, ...
+                              'HorizontalAlignment', 'left');
+
+    % TOF transparency control
+    uicontrol('Style', 'text', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
+              'Position', [0.66 0.70 0.08 0.022], ...
+              'String', 'TOF Alpha', ...
+              'BackgroundColor', [0.94 0.94 0.94], ...
+              'FontSize', 8, ...
+              'HorizontalAlignment', 'left');
+    tofAlphaSlider = uicontrol('Style', 'slider', ...
+                               'Parent', app.figure, ...
+                               'Units', 'normalized', ...
+                               'Position', [0.66 0.67 0.08 0.028], ...
+                               'Min', 0, ...
+                               'Max', 1, ...
+                               'Value', 0.15, ...
+                               'SliderStep', [0.05 0.1]);
+
+    % Atlas transparency control
+    uicontrol('Style', 'text', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
+              'Position', [0.75 0.70 0.08 0.022], ...
+              'String', 'Atlas Alpha', ...
+              'BackgroundColor', [0.94 0.94 0.94], ...
+              'FontSize', 8, ...
+              'HorizontalAlignment', 'left');
+    atlasAlphaSlider = uicontrol('Style', 'slider', ...
+                                 'Parent', app.figure, ...
+                                 'Units', 'normalized', ...
+                                 'Position', [0.75 0.67 0.08 0.028], ...
+                                 'Min', 0, ...
+                                 'Max', 1, ...
+                                 'Value', 0.18, ...
+                                 'SliderStep', [0.05 0.1]);
+
+    if ~isempty(tofThresh)
+        tofMinEdit.String = sprintf('%.2f', tofThresh(1));
+        tofMaxEdit.String = sprintf('%.2f', tofThresh(2));
+    else
+        set([tofCheckbox, tofMinEdit, tofMaxEdit, tofAlphaSlider], 'Enable', 'off');
+    end
+    if isempty(atlasVolume)
+        set([atlasCheckbox, atlasAlphaSlider], 'Enable', 'off');
+    end
+
     infoBox = uicontrol('Style', 'text', ...
                         'Parent', app.figure, ...
                         'Units', 'normalized', ...
@@ -304,7 +454,9 @@ function paramMap_GUI()
     appData.scatterSel = scatterSel;
     appData.cursorMarker = cursorMarker;
     appData.planeLines = planeLines;
+    appData.planePatch = planePatch;
     appData.planeNormal = planeNormal;
+    appData.planeNormalTip = planeNormalTip;
     appData.infoBox = infoBox;
     appData.axes = app.axes;
     appData.axesMAG = app.axesMAG;
@@ -317,6 +469,12 @@ function paramMap_GUI()
     appData.surfacePatches = surfacePatches;
     appData.alphaSlider = alphaSlider;
     appData.syncCheckbox = syncCheckbox;
+    appData.tofCheckbox = tofCheckbox;
+    appData.tofMinEdit = tofMinEdit;
+    appData.tofMaxEdit = tofMaxEdit;
+    appData.tofAlphaSlider = tofAlphaSlider;
+    appData.atlasCheckbox = atlasCheckbox;
+    appData.atlasAlphaSlider = atlasAlphaSlider;
     appData.colormapList = cmapList;
     appData.paramDropdown = paramDropdown;
     appData.cmapDropdown = cmapDropdown;
@@ -340,6 +498,15 @@ function paramMap_GUI()
     appData.imdim = sqrt(size(data_struct.segmentFull, 2));
     appData.data_struct = data_struct;
     appData.currentParamIndex = 1;
+    appData.tofVolume = tofVolume;
+    appData.tofMat = tofMat;
+    appData.tofThresholds = tofThresh;
+    appData.tofPatch = [];
+    appData.showTOF = false;
+    appData.atlasVolume = atlasVolume;
+    appData.atlasPatches = [];
+    appData.atlasLabels = [];
+    appData.showAtlas = false;
 
     guidata(app.figure, appData);
 
@@ -350,6 +517,12 @@ function paramMap_GUI()
     cbMaxEdit.Callback = @(src, ~) updateColorLimits(app.figure, 'max', str2double(src.String));
     alphaSlider.Callback = @(~, ~) applyMaskAlphas(app.figure);
     syncCheckbox.Callback = @(~, ~) applyMaskAlphas(app.figure);
+    tofCheckbox.Callback = @(src, ~) toggleTOFOverlay(app.figure, logical(src.Value));
+    tofMinEdit.Callback = @(src, ~) updateTOFThreshold(app.figure, 'min', str2double(src.String));
+    tofMaxEdit.Callback = @(src, ~) updateTOFThreshold(app.figure, 'max', str2double(src.String));
+    tofAlphaSlider.Callback = @(src, ~) updateTOFOverlay(app.figure);
+    atlasCheckbox.Callback = @(src, ~) toggleAtlasOverlay(app.figure, logical(src.Value));
+    atlasAlphaSlider.Callback = @(src, ~) updateAtlasOverlay(app.figure);
     focusButton.Callback = @(~,~) focusOnSelectedLOC(app.figure);
     resetButton.Callback = @(~,~) resetView(app.figure);
 
@@ -359,6 +532,20 @@ function paramMap_GUI()
     applyParameterSelection(app.figure, 1, true);
     updateSelection(app.figure, 1, vesselNames, locKeys);
     applyMaskAlphas(app.figure);
+    updateTOFOverlay(app.figure);
+    updateAtlasOverlay(app.figure);
+    
+    % Ensure scatter plots are on top for click detection
+    appData = guidata(app.figure);
+    if isfield(appData, 'scatterAll') && isgraphics(appData.scatterAll)
+        uistack(appData.scatterAll, 'top');
+    end
+    if isfield(appData, 'scatterSel') && isgraphics(appData.scatterSel)
+        uistack(appData.scatterSel, 'top');
+    end
+    if isfield(appData, 'cursorMarker') && isgraphics(appData.cursorMarker)
+        uistack(appData.cursorMarker, 'top');
+    end
 
     waitfor(app.figure);
 end
@@ -872,8 +1059,8 @@ end
 
 function onScatterClick(fig, src, evt)
     selType = get(fig,'SelectionType');
-    isCtrlSelect = strcmpi(selType, 'extend');
-    if ~strcmp(selType,'normal') && ~isCtrlSelect
+    isShiftSelect = strcmpi(selType, 'extend'); % 'extend' = Shift+click
+    if ~strcmp(selType,'normal') && ~isShiftSelect
         return;
     end
     appData = guidata(fig);
@@ -898,7 +1085,7 @@ function onScatterClick(fig, src, evt)
 
     if ~isempty(idx) && idx > 0
         updateSelectedPoint(fig, idx);
-        if isCtrlSelect
+        if isShiftSelect
             syncSelectionToVessel(fig, idx);
         end
     end
@@ -1055,6 +1242,20 @@ function updatePlaneOverlay(fig, rowIdx)
     shrinkFactor = 1.0;
     planeCoords = centerPt + shrinkFactor * (planeCoords - centerPt);
 
+    if isfield(appData, 'planePatch') && isgraphics(appData.planePatch)
+        set(appData.planePatch, 'Vertices', planeCoords, 'Visible', 'on');
+        % Ensure scatter plots and cursor marker are on top for click detection
+        if isfield(appData, 'scatterAll') && isgraphics(appData.scatterAll)
+            uistack(appData.scatterAll, 'top');
+        end
+        if isfield(appData, 'scatterSel') && isgraphics(appData.scatterSel)
+            uistack(appData.scatterSel, 'top');
+        end
+        if isfield(appData, 'cursorMarker') && isgraphics(appData.cursorMarker)
+            uistack(appData.cursorMarker, 'top');
+        end
+    end
+
     edges = [1 2; 2 3; 3 4; 4 1];
     for e = 1:4
         lineHandle = appData.planeLines(e);
@@ -1090,6 +1291,14 @@ function updatePlaneOverlay(fig, rowIdx)
             'VData', normalVec(2), ...
             'WData', normalVec(3), ...
             'Visible', 'on');
+        % if isfield(appData, 'planeNormalTip') && isgraphics(appData.planeNormalTip)
+        %     tipPoint = centerPt + normalVec;
+        % set(appData.planeNormalTip, ...
+        %     'XData', tipPoint(1), ...
+        %     'YData', tipPoint(2), ...
+        %     'ZData', tipPoint(3), ...
+        %     'Visible', 'on');
+        % end
     end
 end
 
@@ -1107,10 +1316,18 @@ function hidePlaneOverlay(fig)
             end
         end
     end
+    if isfield(appData, 'planePatch') && isgraphics(appData.planePatch)
+        set(appData.planePatch, 'Visible', 'off');
+    end
     if isfield(appData, 'planeNormal') && isgraphics(appData.planeNormal)
         set(appData.planeNormal, ...
             'XData', NaN, 'YData', NaN, 'ZData', NaN, ...
             'UData', 0, 'VData', 0, 'WData', 0, ...
+            'Visible', 'off');
+    end
+    if isfield(appData, 'planeNormalTip') && isgraphics(appData.planeNormalTip)
+        set(appData.planeNormalTip, ...
+            'XData', NaN, 'YData', NaN, 'ZData', NaN, ...
             'Visible', 'off');
     end
 end
@@ -1145,6 +1362,254 @@ function applyMaskAlphas(fig)
             patchHandle.FaceAlpha = max(0, min(1, targetAlpha));
         catch
             % Ignore invalid handles
+        end
+    end
+end
+
+function toggleTOFOverlay(fig, enabled)
+    appData = guidata(fig);
+    if ~isfield(appData, 'tofVolume') || isempty(appData.tofVolume)
+        return;
+    end
+    appData.showTOF = enabled;
+    guidata(fig, appData);
+    updateTOFOverlay(fig);
+end
+
+function updateTOFThreshold(fig, whichLimit, value)
+    appData = guidata(fig);
+    if ~isfield(appData, 'tofVolume') || isempty(appData.tofVolume) || ~isfinite(value)
+        return;
+    end
+    if isempty(appData.tofThresholds) || numel(appData.tofThresholds) ~= 2
+        finiteVals = appData.tofVolume(isfinite(appData.tofVolume));
+        if isempty(finiteVals)
+            return;
+        end
+        appData.tofThresholds = [min(finiteVals), max(finiteVals)];
+    end
+    switch whichLimit
+        case 'min'
+            appData.tofThresholds(1) = min(value, appData.tofThresholds(2) - eps);
+        case 'max'
+            appData.tofThresholds(2) = max(value, appData.tofThresholds(1) + eps);
+    end
+    if isfield(appData, 'tofMinEdit') && isgraphics(appData.tofMinEdit)
+        appData.tofMinEdit.String = sprintf('%.2f', appData.tofThresholds(1));
+    end
+    if isfield(appData, 'tofMaxEdit') && isgraphics(appData.tofMaxEdit)
+        appData.tofMaxEdit.String = sprintf('%.2f', appData.tofThresholds(2));
+    end
+    guidata(fig, appData);
+    updateTOFOverlay(fig);
+end
+
+function updateTOFOverlay(fig)
+    appData = guidata(fig);
+    if ~isfield(appData, 'tofVolume') || isempty(appData.tofVolume)
+        return;
+    end
+    enabled = isfield(appData, 'showTOF') && appData.showTOF;
+    if ~enabled
+        if isfield(appData, 'tofPatch') && ~isempty(appData.tofPatch) && isgraphics(appData.tofPatch) && isscalar(appData.tofPatch)
+            set(appData.tofPatch, 'Visible', 'off');
+        end
+        return;
+    end
+    if isempty(appData.tofThresholds)
+        finiteVals = appData.tofVolume(isfinite(appData.tofVolume));
+        if isempty(finiteVals)
+            return;
+        end
+        appData.tofThresholds = [prctile(finiteVals, 70), prctile(finiteVals, 99.5)];
+        if appData.tofThresholds(1) == appData.tofThresholds(2)
+            appData.tofThresholds = [min(finiteVals), max(finiteVals)];
+        end
+        if isfield(appData, 'tofMinEdit') && isgraphics(appData.tofMinEdit)
+            appData.tofMinEdit.String = sprintf('%.2f', appData.tofThresholds(1));
+        end
+        if isfield(appData, 'tofMaxEdit') && isgraphics(appData.tofMaxEdit)
+            appData.tofMaxEdit.String = sprintf('%.2f', appData.tofThresholds(2));
+        end
+        guidata(fig, appData);
+        appData = guidata(fig); % refresh local copy
+    end
+    segVol = permute(appData.tofVolume, [2 1 3]);
+    thresh = appData.tofThresholds;
+    mask = segVol >= thresh(1) & segVol <= thresh(2);
+    if ~any(mask(:))
+        if isfield(appData, 'tofPatch') && ~isempty(appData.tofPatch) && isgraphics(appData.tofPatch) && isscalar(appData.tofPatch)
+            set(appData.tofPatch, 'Visible', 'off');
+        end
+        return;
+    end
+    
+    % Downsample for performance - reduce resolution to make rendering manageable
+    % Aggressively downsample large volumes to keep rendering smooth
+    origSize = size(mask);
+    maxVoxels = 50000; % Target maximum voxels for performance (reduced from 100k)
+    currentVoxels = numel(mask);
+    
+    % Calculate downsampling factor to target maxVoxels
+    if currentVoxels > maxVoxels
+        % Use cubic root since we're downsampling in 3D
+        downsampleFactor = ceil((currentVoxels / maxVoxels)^(1/3));
+    else
+        downsampleFactor = 1;
+    end
+    
+    % Minimum downsampling of 2 for large volumes
+    if currentVoxels > 200000
+        downsampleFactor = max(downsampleFactor, 3);
+    elseif currentVoxels > 100000
+        downsampleFactor = max(downsampleFactor, 2);
+    end
+    
+    if downsampleFactor > 1
+        newSize = max(1, round(origSize / downsampleFactor));
+        % Use imresize3 if available, otherwise downsample manually
+        if exist('imresize3', 'file')
+            mask = imresize3(mask, newSize, 'nearest');
+        else
+            % Manual downsampling by taking every Nth voxel
+            idx1 = 1:downsampleFactor:origSize(1);
+            idx2 = 1:downsampleFactor:origSize(2);
+            idx3 = 1:downsampleFactor:origSize(3);
+            mask = mask(idx1, idx2, idx3);
+        end
+    end
+    
+    try
+        fv = isosurface(mask, 0.5);
+        % Scale vertices back to original coordinate space if downsampled
+        if downsampleFactor > 1 && ~isempty(fv.vertices)
+            fv.vertices = fv.vertices * downsampleFactor;
+        end
+    catch ME
+        warning('paramMap_GUI:TOFIsosurfaceFailed', ...
+                'Failed to create TOF isosurface: %s', ME.message);
+        return;
+    end
+    if isempty(fv.vertices)
+        if isfield(appData, 'tofPatch') && ~isempty(appData.tofPatch) && isgraphics(appData.tofPatch) && isscalar(appData.tofPatch)
+            set(appData.tofPatch, 'Visible', 'off');
+        end
+        return;
+    end
+    % Get transparency from slider
+    tofAlpha = 0.15; % default
+    if isfield(appData, 'tofAlphaSlider') && isgraphics(appData.tofAlphaSlider)
+        tofAlpha = appData.tofAlphaSlider.Value;
+    end
+    
+    if ~isfield(appData, 'tofPatch') || isempty(appData.tofPatch) || ~isscalar(appData.tofPatch) || ~isgraphics(appData.tofPatch)
+        tofPatch = patch(appData.axes, fv, ...
+            'FaceColor', [1 0.9 0.6], ...
+            'EdgeColor', 'none', ...
+            'FaceAlpha', tofAlpha, ...
+            'HitTest', 'off', ...
+            'Visible', 'on');
+        appData.tofPatch = tofPatch;
+    else
+        set(appData.tofPatch, ...
+            'Vertices', fv.vertices, ...
+            'Faces', fv.faces, ...
+            'FaceAlpha', tofAlpha, ...
+            'Visible', 'on');
+    end
+    guidata(fig, appData);
+end
+
+function toggleAtlasOverlay(fig, enabled)
+    appData = guidata(fig);
+    if ~isfield(appData, 'atlasVolume') || isempty(appData.atlasVolume)
+        return;
+    end
+    appData.showAtlas = enabled;
+    guidata(fig, appData);
+    updateAtlasOverlay(fig);
+end
+
+function updateAtlasOverlay(fig)
+    appData = guidata(fig);
+    if ~isfield(appData, 'atlasVolume') || isempty(appData.atlasVolume)
+        return;
+    end
+    enabled = isfield(appData, 'showAtlas') && appData.showAtlas;
+    if ~enabled
+        if isfield(appData, 'atlasPatches') && ~isempty(appData.atlasPatches)
+            for i = 1:numel(appData.atlasPatches)
+                h = appData.atlasPatches(i);
+                if isgraphics(h)
+                    set(h, 'Visible', 'off');
+                end
+            end
+        end
+        return;
+    end
+    segVol = permute(appData.atlasVolume, [2 1 3]);
+    labels = unique(segVol(segVol > 0));
+    if isempty(labels)
+        return;
+    end
+    % If patches not built or labels changed, rebuild
+    needRebuild = isempty(appData.atlasPatches) || ...
+                  ~isfield(appData, 'atlasLabels') || ...
+                  numel(appData.atlasLabels) ~= numel(labels) || ...
+                  any(appData.atlasLabels(:)' ~= labels(:)');
+    if needRebuild
+        if isfield(appData, 'atlasPatches') && ~isempty(appData.atlasPatches)
+            for i = 1:numel(appData.atlasPatches)
+                if isgraphics(appData.atlasPatches(i))
+                    delete(appData.atlasPatches(i));
+                end
+            end
+        end
+        % Get transparency from slider
+        atlasAlpha = 0.18; % default
+        if isfield(appData, 'atlasAlphaSlider') && isgraphics(appData.atlasAlphaSlider)
+            atlasAlpha = appData.atlasAlphaSlider.Value;
+        end
+        
+        colors = lines(numel(labels));
+        atlasPatches = gobjects(numel(labels),1);
+        for i = 1:numel(labels)
+            mask = segVol == labels(i);
+            if ~any(mask(:))
+                continue;
+            end
+            try
+                fv = isosurface(mask, 0.5);
+            catch
+                continue;
+            end
+            if isempty(fv.vertices)
+                continue;
+            end
+            atlasPatches(i) = patch(appData.axes, fv, ...
+                'FaceColor', colors(i,:), ...
+                'EdgeColor', 'none', ...
+                'FaceAlpha', atlasAlpha, ...
+                'HitTest', 'off', ...
+                'Visible', 'on');
+        end
+        valid = isgraphics(atlasPatches);
+        atlasPatches = atlasPatches(valid);
+        appData.atlasPatches = atlasPatches;
+        appData.atlasLabels = labels(valid);
+        guidata(fig, appData);
+    else
+        % Update transparency for existing patches
+        atlasAlpha = 0.18; % default
+        if isfield(appData, 'atlasAlphaSlider') && isgraphics(appData.atlasAlphaSlider)
+            atlasAlpha = appData.atlasAlphaSlider.Value;
+        end
+        
+        for i = 1:numel(appData.atlasPatches)
+            h = appData.atlasPatches(i);
+            if isgraphics(h)
+                set(h, 'FaceAlpha', atlasAlpha, 'Visible', 'on');
+            end
         end
     end
 end

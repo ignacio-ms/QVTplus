@@ -307,9 +307,13 @@ function registeredImagePath = performFSLRegistration(QVT_path, sourceImagePath,
     eICABImagePath = flipImage180(eICABImagePath);
     setenv("FSLOUTPUTTYPE", "NIFTI");
 
+    % Define the registered TOF image path
+    [folder, baseName, ext] = fileparts(sourceImagePath);
+    registeredTOFImagePath = fullfile(folder, ['r_', baseName, ext]);
+
     % Perform FSL-based registration to align eICAB and QVT masks
-    flirtCmd = sprintf('flirt -in %s -ref %s -omat %s -cost normmi -searchcost normmi -dof 6', ...
-        sourceImagePath, QVT_path, fullfile(fileparts(eICABImagePath), 'transform.mat'));
+    flirtCmd = sprintf('flirt -in %s -ref %s -omat %s -out %s -cost normmi -searchcost normmi -dof 6', ...
+        sourceImagePath, QVT_path, fullfile(fileparts(eICABImagePath), 'transform.mat'), registeredTOFImagePath);
     disp(flirtCmd)
     system(flirtCmd);
 
