@@ -99,6 +99,21 @@ function paramMap_GUI()
                             'Visible', 'off', ...
                             'HitTest', 'off', ...
                             'PickableParts', 'none');
+    planeLines = gobjects(4,1);
+    for iLine = 1:4
+        planeLines(iLine) = plot3(app.axes, NaN, NaN, NaN, ...
+                                  'Color', [1 0.25 0.25], ...
+                                  'LineWidth', 1.6, ...
+                                  'HitTest', 'off', ...
+                                  'PickableParts', 'none', ...
+                                  'Visible', 'off');
+    end
+    planeNormal = quiver3(app.axes, NaN, NaN, NaN, 0, 0, 0, ...
+                          'Color', [1 0.45 0.2], ...
+                          'LineWidth', 2.0, ...
+                          'AutoScale', 'off', ...
+                          'HitTest', 'off', ...
+                          'Visible', 'off');
 
     colormap(app.axes, parula);
 
@@ -203,6 +218,17 @@ function paramMap_GUI()
                             'Value', 0.3, ...
                             'SliderStep', [0.05 0.1]);
 
+    syncCheckbox = uicontrol('Style', 'checkbox', ...
+                             'Parent', app.figure, ...
+                             'Units', 'normalized', ...
+                             'Position', [0.87 0.80 0.09 0.028], ...
+                             'String', 'Sync Masks', ...
+                             'Value', 1, ...
+                             'ForegroundColor', [1 1 1], ...
+                             'BackgroundColor', [0 0 0], ...
+                             'FontSize', 8, ...
+                             'HorizontalAlignment', 'left');
+
     % Group 4: Action buttons (compact)
     focusButton = uicontrol('Style', 'pushbutton', ...
                             'Parent', app.figure, ...
@@ -277,6 +303,8 @@ function paramMap_GUI()
     appData.scatterAll = scatterAll;
     appData.scatterSel = scatterSel;
     appData.cursorMarker = cursorMarker;
+    appData.planeLines = planeLines;
+    appData.planeNormal = planeNormal;
     appData.infoBox = infoBox;
     appData.axes = app.axes;
     appData.axesMAG = app.axesMAG;
@@ -288,6 +316,7 @@ function paramMap_GUI()
     appData.paramOptions = paramOptions;
     appData.surfacePatches = surfacePatches;
     appData.alphaSlider = alphaSlider;
+    appData.syncCheckbox = syncCheckbox;
     appData.colormapList = cmapList;
     appData.paramDropdown = paramDropdown;
     appData.cmapDropdown = cmapDropdown;
@@ -301,6 +330,7 @@ function paramMap_GUI()
     appData.nframes = data_struct.nframes;
     appData.timeres = data_struct.timeres;
     appData.segmentFull = data_struct.segmentFull;
+    appData.Planes = data_struct.Planes;
     appData.MAGcrossection = data_struct.MAGcrossection;
     appData.timeMIPcrossection = data_struct.timeMIPcrossection;
     appData.vTimeFrameave = data_struct.vTimeFrameave;
@@ -318,7 +348,8 @@ function paramMap_GUI()
     cmapDropdown.Callback = @(src, ~) changeColormap(app.figure, src.Value);
     cbMinEdit.Callback = @(src, ~) updateColorLimits(app.figure, 'min', str2double(src.String));
     cbMaxEdit.Callback = @(src, ~) updateColorLimits(app.figure, 'max', str2double(src.String));
-    alphaSlider.Callback = @(src, ~) updateIsosurfaceAlpha(app.figure, src.Value);
+    alphaSlider.Callback = @(~, ~) applyMaskAlphas(app.figure);
+    syncCheckbox.Callback = @(~, ~) applyMaskAlphas(app.figure);
     focusButton.Callback = @(~,~) focusOnSelectedLOC(app.figure);
     resetButton.Callback = @(~,~) resetView(app.figure);
 
@@ -327,6 +358,7 @@ function paramMap_GUI()
 
     applyParameterSelection(app.figure, 1, true);
     updateSelection(app.figure, 1, vesselNames, locKeys);
+    applyMaskAlphas(app.figure);
 
     waitfor(app.figure);
 end
@@ -381,8 +413,8 @@ end
 
 function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_struct, correspondenceDict, multiQVTvol)
     % Generate colored isosurfaces for each vessel
-    surfacePatches = struct();
-    
+    surfacePatches = struct('handle', {}, 'label', {}, 'vessel', {});
+
     % Define distinct colors for each vessel type
     vesselColors = containers.Map(...
         {'LICA', 'RICA', 'BASI', 'LMCA', 'RMCA', 'LACA', 'RACA', ...
@@ -390,12 +422,12 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
         {[1 0.2 0.2], [0.2 0.2 1], [0.2 1 0.2], [1 0.6 0.2], [0.6 0.2 1], ...
          [1 0.8 0.2], [0.8 0.2 1], [0.2 1 0.8], [0.2 0.8 1], ...
          [1 0.4 0.6], [0.4 1 0.6], [0.6 0.4 1], [0.8 0.8 0.2], [0.5 0.5 0.5]});
-    
+
     % Use multilabel volume if available, otherwise use binary segment
     if ~isempty(multiQVTvol) && ~all(multiQVTvol(:) == 0)
         segVol = permute(multiQVTvol, [2 1 3]);
         uniqueLabels = unique(segVol(segVol > 0));
-        
+
         % Map labels to vessel names using correspondenceDict
         labelToVessel = containers.Map('KeyType', 'double', 'ValueType', 'char');
         vesselKeys = fieldnames(correspondenceDict);
@@ -403,12 +435,9 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
             key = vesselKeys{i};
             segments = correspondenceDict.(key);
             for seg = segments(:)'
-                % Find which label in multiQVTvol corresponds to this segment
-                % We'll use the branchList to map segments to labels
                 branchMask = data_struct.branchList(:,4) == seg;
                 if any(branchMask)
                     coords = round(data_struct.branchList(branchMask, 1:3));
-                    % After permute([2 1 3]), coordinates are [y, x, z]
                     coordsPerm = [coords(:,2), coords(:,1), coords(:,3)];
                     validCoords = coordsPerm(:,1) >= 1 & coordsPerm(:,1) <= size(segVol,1) & ...
                                   coordsPerm(:,2) >= 1 & coordsPerm(:,2) <= size(segVol,2) & ...
@@ -429,7 +458,7 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
                 end
             end
         end
-        
+
         % Create isosurface for each unique label
         for lbl = uniqueLabels(:)'
             if isKey(labelToVessel, lbl)
@@ -440,9 +469,10 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
                     color = [0.7 0.7 0.7];
                 end
             else
+                vesselName = '';
                 color = [0.7 0.7 0.7];
             end
-            
+
             try
                 maskVol = (segVol == lbl);
                 if any(maskVol(:))
@@ -451,11 +481,13 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
                         patchHandle = patch(ax, fv, ...
                             'FaceColor', color, ...
                             'EdgeColor', 'none', ...
-                            'FaceAlpha', 0.3, ...
+                            'FaceAlpha', 0.5, ...
                             'HitTest', 'off', ...
                             'PickableParts', 'none');
-                        % Store by label number to handle multiple labels per vessel
-                        surfacePatches.(sprintf('Label_%d', lbl)) = patchHandle;
+                        surfacePatches(end+1) = struct( ... %#ok<AGROW>
+                            'handle', patchHandle, ...
+                            'label', lbl, ...
+                            'vessel', vesselName);
                     end
                 end
             catch ME
@@ -472,10 +504,13 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
                 patchHandle = patch(ax, fv, ...
                     'FaceColor', [0.8 0.8 0.8], ...
                     'EdgeColor', 'none', ...
-                    'FaceAlpha', 0.3, ...
+                    'FaceAlpha', 0.5, ...
                     'HitTest', 'off', ...
                     'PickableParts', 'none');
-                surfacePatches.all = patchHandle;
+                surfacePatches(1) = struct( ...
+                    'handle', patchHandle, ...
+                    'label', 0, ...
+                    'vessel', '');
             end
         catch ME
             warning('paramMap_GUI:IsosurfaceFailed', ...
@@ -526,7 +561,7 @@ function locPlots = plotLocMarkers(ax, locInfo)
 end
 
 function paramOptions = createParamOptions(data_struct)
-    paramOptions = struct('label', {}, 'field', {}, 'units', {});
+    paramOptions = struct('label', {}, 'field', {}, 'units', {}, 'customData', {});
     nPoints = size(data_struct.branchList, 1);
     preferred = {
         'area_val',            'Cross-sectional Area', 'cm^2';
@@ -546,7 +581,8 @@ function paramOptions = createParamOptions(data_struct)
             paramOptions(end+1) = struct( ...
                 'label', preferred{i,2}, ...
                 'field', field, ...
-                'units', preferred{i,3}); %#ok<AGROW>
+                'units', preferred{i,3}, ...
+                'customData', []); %#ok<AGROW>
             added{end+1} = field; %#ok<AGROW>
         end
     end
@@ -564,15 +600,28 @@ function paramOptions = createParamOptions(data_struct)
             paramOptions(end+1) = struct( ...
                 'label', label, ...
                 'field', field, ...
-                'units', '');
+                'units', '', ...
+                'customData', []);
             added{end+1} = field; %#ok<AGROW>
+        end
+    end
+
+    if isfield(data_struct, 'flowPulsatile_val')
+        meanFlow = mean(data_struct.flowPulsatile_val, 2, 'omitnan');
+        if numel(meanFlow) == nPoints
+            paramOptions(end+1) = struct( ...
+                'label', 'Mean Flow (Point)', ...
+                'field', '', ...
+                'units', 'mL/s', ...
+                'customData', meanFlow(:));
         end
     end
 
     if isempty(paramOptions)
         paramOptions = struct('label', 'Total Flow', ...
                               'field', 'flowPerHeartCycle_val', ...
-                              'units', 'mL/s');
+                              'units', 'mL/s', ...
+                              'customData', []);
     end
 end
 
@@ -594,7 +643,11 @@ end
 function applyParameterSelection(fig, idx, resetLimits)
     appData = guidata(fig);
     option = appData.paramOptions(idx);
-    data = double(appData.data_struct.(option.field));
+    if isfield(option, 'customData') && ~isempty(option.customData)
+        data = double(option.customData);
+    else
+        data = double(appData.data_struct.(option.field));
+    end
     appData.currentParamIndex = idx;
     appData.paramData = data;
     appData.paramLabel = option.label;
@@ -646,6 +699,7 @@ function updateSelection(fig, selectionIdx, vesselNames, locKeys)
     appData.selection.selIndices = [];
     appData.selection.pointRow = [];
     appData.cursorMarker.Visible = 'off';
+    hidePlaneOverlay(fig);
     updateInfoBox(fig, [], []);
 
     scatterAll.MarkerFaceAlpha = 0.8;
@@ -655,6 +709,7 @@ function updateSelection(fig, selectionIdx, vesselNames, locKeys)
     if selectionIdx <= 1 || isempty(vesselNames)
         scatterAll.Visible = 'on';
         guidata(fig, appData);
+        applyMaskAlphas(fig);
         return;
     end
 
@@ -673,6 +728,7 @@ function updateSelection(fig, selectionIdx, vesselNames, locKeys)
         warning('paramMap_GUI:EmptySegment', ...
                 'No centerline points found for vessel %s.', key);
         guidata(fig, appData);
+        hidePlaneOverlay(fig);
         return;
     end
 
@@ -702,6 +758,7 @@ function updateSelection(fig, selectionIdx, vesselNames, locKeys)
     end
 
     guidata(fig, appData);
+    applyMaskAlphas(fig);
 end
 
 function updateInfoBox(fig, key, locEntry)
@@ -814,7 +871,9 @@ function resetView(fig)
 end
 
 function onScatterClick(fig, src, evt)
-    if ~strcmp(get(fig,'SelectionType'),'normal')
+    selType = get(fig,'SelectionType');
+    isCtrlSelect = strcmpi(selType, 'extend');
+    if ~strcmp(selType,'normal') && ~isCtrlSelect
         return;
     end
     appData = guidata(fig);
@@ -839,6 +898,9 @@ function onScatterClick(fig, src, evt)
 
     if ~isempty(idx) && idx > 0
         updateSelectedPoint(fig, idx);
+        if isCtrlSelect
+            syncSelectionToVessel(fig, idx);
+        end
     end
 end
 
@@ -857,6 +919,7 @@ function updateSelectedPoint(fig, rowIdx)
     displayPointInfo(fig, rowIdx);
     updateCrossSections(fig, rowIdx);
     updateWaveform(fig, rowIdx);
+    updatePlaneOverlay(fig, rowIdx);
 end
 
 function displayPointInfo(fig, rowIdx)
@@ -897,22 +960,22 @@ function updateCrossSections(fig, rowIdx)
     v1 = squeeze(appData.VplanesAllx(rowIdx,:,:));
     v2 = squeeze(appData.VplanesAlly(rowIdx,:,:));
     v3 = squeeze(appData.VplanesAllz(rowIdx,:,:));
-    VcrossTR = 0.1*(v1 + v2 + v3);
+    VcrossTR = 0.1*(v1 + v2 + v3); % mm/s -> cm/s
     normDim = sqrt(size(VcrossTR,1));
     VcrossTR = reshape(VcrossTR, normDim, normDim, appData.nframes);
     VcrossTR = imresize(VcrossTR(:,:,peakFrameIndex(appData.flowPulsatile(rowIdx,:))), [imdim imdim], 'nearest');
 
-    showCrossSection(appData.axesMAG, mag, mask, 'gray');
-    showCrossSection(appData.axesCD, cd, mask, 'gray');
-    showCrossSection(appData.axesVelTA, velTA, mask, 'gray');
-    showCrossSection(appData.axesVelTR, VcrossTR, mask, 'gray');
+    showCrossSection(appData.axesMAG, mag, mask, 'gray', 'Magnitude');
+    showCrossSection(appData.axesCD, cd, mask, 'gray', 'Complex Difference');
+    showCrossSection(appData.axesVelTA, velTA, mask, 'gray', 'Velocity (TA)');
+    showCrossSection(appData.axesVelTR, VcrossTR, mask, 'gray', 'Velocity (TR)');
 end
 
 function idx = peakFrameIndex(flowWaveform)
     [~, idx] = max(abs(flowWaveform));
 end
 
-function showCrossSection(ax, imageData, mask, cmapName)
+function showCrossSection(ax, imageData, mask, cmapName, titleText)
     axes(ax); %#ok<LAXES>
     cla(ax);
     imagesc(ax, imageData);
@@ -922,10 +985,6 @@ function showCrossSection(ax, imageData, mask, cmapName)
     hold(ax, 'on');
     contour(ax, mask, [0.5 0.5], 'LineWidth', 0.8, 'LineColor', 'w');
     hold(ax, 'off');
-    titleText = ax.Title.String;
-    if isempty(titleText)
-        titleText = '';
-    end
     title(ax, titleText, 'Color', 'w', 'FontSize', 10);
 end
 
@@ -976,20 +1035,158 @@ function updateWaveform(fig, rowIdx)
     title(ax, 'Time-Resolved Flow', 'Color', 'w');
 end
 
-function updateIsosurfaceAlpha(fig, alphaValue)
+function updatePlaneOverlay(fig, rowIdx)
     appData = guidata(fig);
-    if ~isfield(appData, 'surfacePatches')
+    if ~isfield(appData, 'planeLines') || isempty(appData.planeLines) || ...
+       ~isfield(appData, 'Planes') || isempty(appData.Planes)
         return;
     end
-    patchNames = fieldnames(appData.surfacePatches);
-    for i = 1:numel(patchNames)
-        try
-            patchHandle = appData.surfacePatches.(patchNames{i});
-            if ishandle(patchHandle) || (isobject(patchHandle) && isvalid(patchHandle))
-                patchHandle.FaceAlpha = alphaValue;
+    if rowIdx < 1 || rowIdx > size(appData.Planes, 1)
+        hidePlaneOverlay(fig);
+        return;
+    end
+    planeCoords = squeeze(appData.Planes(rowIdx,:,:));
+    if size(planeCoords,1) < 4
+        hidePlaneOverlay(fig);
+        return;
+    end
+
+    centerPt = mean(planeCoords, 1);
+    shrinkFactor = 1.0;
+    planeCoords = centerPt + shrinkFactor * (planeCoords - centerPt);
+
+    edges = [1 2; 2 3; 3 4; 4 1];
+    for e = 1:4
+        lineHandle = appData.planeLines(e);
+        if ~isgraphics(lineHandle)
+            continue;
+        end
+        pts = planeCoords(edges(e,:), :);
+        set(lineHandle, ...
+            'XData', pts(:,1), ...
+            'YData', pts(:,2), ...
+            'ZData', pts(:,3), ...
+            'Visible', 'on');
+    end
+
+    if isfield(appData, 'planeNormal') && isgraphics(appData.planeNormal)
+        v1 = planeCoords(2,:) - planeCoords(1,:);
+        v2 = planeCoords(4,:) - planeCoords(1,:);
+        normalVec = cross(v1, v2);
+        nNorm = norm(normalVec);
+        if nNorm > 0
+            normalVec = normalVec / nNorm;
+        end
+        edgeVecs = planeCoords([2 3 4 1],:) - planeCoords([1 2 3 4],:);
+        edgeLens = vecnorm(edgeVecs, 2, 2);
+        planeScale = mean(edgeLens);
+        arrowLen = planeScale * 0.45;
+        normalVec = normalVec * arrowLen;
+        set(appData.planeNormal, ...
+            'XData', centerPt(1), ...
+            'YData', centerPt(2), ...
+            'ZData', centerPt(3), ...
+            'UData', normalVec(1), ...
+            'VData', normalVec(2), ...
+            'WData', normalVec(3), ...
+            'Visible', 'on');
+    end
+end
+
+function hidePlaneOverlay(fig)
+    appData = guidata(fig);
+    if isfield(appData, 'planeLines') && ~isempty(appData.planeLines)
+        for e = 1:numel(appData.planeLines)
+            lineHandle = appData.planeLines(e);
+            if isgraphics(lineHandle)
+                set(lineHandle, ...
+                    'XData', [NaN NaN], ...
+                    'YData', [NaN NaN], ...
+                    'ZData', [NaN NaN], ...
+                    'Visible', 'off');
             end
+        end
+    end
+    if isfield(appData, 'planeNormal') && isgraphics(appData.planeNormal)
+        set(appData.planeNormal, ...
+            'XData', NaN, 'YData', NaN, 'ZData', NaN, ...
+            'UData', 0, 'VData', 0, 'WData', 0, ...
+            'Visible', 'off');
+    end
+end
+
+function applyMaskAlphas(fig)
+    appData = guidata(fig);
+    if ~isfield(appData, 'surfacePatches') || isempty(appData.surfacePatches)
+        return;
+    end
+    if ~isfield(appData, 'alphaSlider') || ~ishandle(appData.alphaSlider)
+        return;
+    end
+    alphaValue = appData.alphaSlider.Value;
+    syncOn = isfield(appData, 'syncCheckbox') && ishandle(appData.syncCheckbox) && logical(appData.syncCheckbox.Value);
+    selectedKey = '';
+    if isfield(appData, 'selection') && isfield(appData.selection, 'key')
+        selectedKey = appData.selection.key;
+    end
+    for i = 1:numel(appData.surfacePatches)
+        try
+            patchHandle = appData.surfacePatches(i).handle;
+            if ~(ishandle(patchHandle) || (isobject(patchHandle) && isvalid(patchHandle)))
+                continue;
+            end
+            targetAlpha = alphaValue;
+            if syncOn && ~isempty(selectedKey)
+                vesselName = appData.surfacePatches(i).vessel;
+                if isempty(vesselName) || ~strcmpi(vesselName, selectedKey)
+                    targetAlpha = alphaValue * 0.08;
+                end
+            end
+            patchHandle.FaceAlpha = max(0, min(1, targetAlpha));
         catch
-            % Skip invalid handles
+            % Ignore invalid handles
+        end
+    end
+end
+
+function syncSelectionToVessel(fig, rowIdx)
+    appData = guidata(fig);
+    if rowIdx < 1 || rowIdx > size(appData.branchList,1)
+        return;
+    end
+    segID = appData.branchList(rowIdx,4);
+    vesselKey = findVesselKey(appData.correspondenceDict, segID);
+    if isempty(vesselKey)
+        return;
+    end
+    locIdx = find(strcmp(appData.locKeys, vesselKey), 1);
+    if isempty(locIdx)
+        return;
+    end
+    newValue = locIdx + 1; % account for "All Vessels"
+    vesselNames = appData.vesselNames;
+    locKeys = appData.locKeys;
+    if appData.dropdown.Value ~= newValue
+        appData.dropdown.Value = newValue;
+        guidata(fig, appData);
+        updateSelection(fig, newValue, vesselNames, locKeys);
+    else
+        updateSelection(fig, newValue, vesselNames, locKeys);
+    end
+end
+
+function vesselKey = findVesselKey(correspondenceDict, segID)
+    vesselKey = '';
+    dictFields = fieldnames(correspondenceDict);
+    for i = 1:numel(dictFields)
+        key = dictFields{i};
+        segments = correspondenceDict.(key);
+        if isempty(segments)
+            continue;
+        end
+        if any(segments == segID)
+            vesselKey = key;
+            return;
         end
     end
 end
