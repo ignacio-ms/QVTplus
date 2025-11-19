@@ -6,7 +6,7 @@ clear; clc;
 % savepath;
 
 % Define base paths
-patient_id = 'PESA10758400_A';
+patient_id = 'PESA10758400';
 base_path = '/home/imarcoss/NetVolumes/Tierra/LAB_VF-ICH/LAB/MCC LAB/_IgnacioMarcos/LabVF/PESA-Brain/';
 
 if strcmp(patient_id, 'all')

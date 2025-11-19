@@ -1239,7 +1239,7 @@ function updatePlaneOverlay(fig, rowIdx)
     end
 
     centerPt = mean(planeCoords, 1);
-    shrinkFactor = 1.0;
+    shrinkFactor = 0.7;
     planeCoords = centerPt + shrinkFactor * (planeCoords - centerPt);
 
     if isfield(appData, 'planePatch') && isgraphics(appData.planePatch)
