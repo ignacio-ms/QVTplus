@@ -6,7 +6,7 @@ clear; clc;
 % savepath;
 
 % Define base paths
-patient_id = 'PESA10758400';
+patient_id = 'all';
 base_path = '/home/imarcoss/NetVolumes/Tierra/LAB_VF-ICH/LAB/MCC LAB/_IgnacioMarcos/LabVF/PESA-Brain/';
 
 if strcmp(patient_id, 'all')
@@ -25,7 +25,7 @@ for idx = 1:numel(patient_ids)
     path_to_data = fullfile(base_path, 'DATA/Nifti', current_patient_id, '4DFlow')
     eICAB_path = fullfile(base_path, 'RESULTS/eICAB', current_patient_id)
     % output_path = fullfile(base_path, 'RESULTS/QVTPlus', current_patient_id)
-    output_path = fullfile('/data_local/LabVF/PESA-Brain/RESULTS/', current_patient_id)
+    output_path = fullfile('/data_local/LabVF/PESA-Brain/RESULTS/QVTPlus/', current_patient_id)
     mkdir(output_path);
     disp(['--------------------------------']);
 
