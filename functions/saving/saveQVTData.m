@@ -32,6 +32,19 @@ function [data_struct, imageData] = saveQVTData(directory,area_val,diam_val,bran
     data_struct.pixelSpace = pixelSpace;
     data_struct.VoxDims = VoxDims;
     data_struct.PIvel_val =PIvel_val;
+    % Store original affine matrix to preserve image orientation
+    if isfield(imageData, 'OriginalAffine')
+        data_struct.OriginalAffine = imageData.OriginalAffine;
+    else
+        warning('OriginalAffine not found in imageData. Creating default affine from VoxDims.');
+        % Fallback: create affine from voxel dimensions (but this should not happen)
+        data_struct.OriginalAffine = eye(4);
+        data_struct.OriginalAffine(1,1) = VoxDims(1);
+        data_struct.OriginalAffine(2,2) = VoxDims(2);
+        data_struct.OriginalAffine(3,3) = VoxDims(3);
+        new_origin = (data_struct.OriginalAffine.dim(1:3) + 1) / 2; % Center of the image
+        data_struct.OriginalAffine(1:3, 4) = data_struct.OriginalAffine(1:3, 1:3) * -new_origin';
+    end
     
     Vel_Time_Res.VplanesAllx = VplanesAllx; %TR vel planes (uninterped)
     Vel_Time_Res.VplanesAlly = VplanesAlly;

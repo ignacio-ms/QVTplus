@@ -1,8 +1,19 @@
 function save_vol(output_path, data_struct, LOCs)
-    % Load reference image
+    % Load reference image (QVT_MAG should now have original affine)
     imageData = spm_vol(fullfile(output_path, 'QVT_MAG.nii'));
     fullSize = imageData.dim;
     volume = zeros(fullSize);
+    
+    % USE ORIGINAL AFFINE: If data_struct has OriginalAffine, use it instead of QVT_MAG affine
+    % (QVT_MAG should already have the original affine, but this ensures consistency)
+    if isfield(data_struct, 'OriginalAffine')
+        % Use original affine from data_struct to ensure we're using the true original
+        originalAffine = data_struct.OriginalAffine;
+    else
+        % Fallback: use affine from QVT_MAG (which should be original if pipeline is correct)
+        originalAffine = imageData.mat;
+        warning('OriginalAffine not found in data_struct. Using QVT_MAG affine as fallback.');
+    end
 
     % Initialize branchList with -1 labels
     branchList = data_struct.branchList;
@@ -107,5 +118,9 @@ function save_vol(output_path, data_struct, LOCs)
     V = imageData;
     V.fname = fullfile(output_path, 'branchmask.nii');
     V.descrip = 'Multilabel mask with split shared branches';
+    % USE ORIGINAL AFFINE: Ensure we use the original affine, not the recentered one
+    if exist('originalAffine', 'var')
+        V.mat = originalAffine;
+    end
     spm_write_vol(V, volume);
 end

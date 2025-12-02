@@ -84,25 +84,39 @@ json_mag = jsondecode(json_mag);
 % Load magnitude volume
 magvol = dir(fullfile(ap_path, '*.nii.gz'));
 magvol = spm_vol(fullfile(magvol(1).folder, magvol(1).name));
-mag = flip(spm_read_vols(magvol), 3);
+% Store original affine matrix for preserving image orientation
+originalAffine = magvol(1).mat;
+% REMOVED: flip operation - assuming input data is already RAS oriented
+% mag = flip(spm_read_vols(magvol), 3
+mag = spm_read_vols(magvol);
 
 % Load phase volumes for each direction
 vxvol = dir(fullfile(ap_path, '*_ph.nii.gz'));
 vxvol = spm_vol(fullfile(vxvol(1).folder, vxvol(1).name));
-vx = flip(spm_read_vols(vxvol), 3);
+% REMOVED: flip operation - assuming input data is already RAS oriented
+% vx = flip(spm_read_vols(vxvol), 3);
+vx = spm_read_vols(vxvol);
 
 vyvol = dir(fullfile(rl_path, '*_ph.nii.gz'));
 vyvol = spm_vol(fullfile(vyvol(1).folder, vyvol(1).name));
-vy = flip(spm_read_vols(vyvol), 3);
+% REMOVED: flip operation - assuming input data is already RAS oriented
+% vy = flip(spm_read_vols(vyvol), 3);
+vy = spm_read_vols(vyvol);
 
 vzvol = dir(fullfile(fh_path, '*_ph.nii.gz'));
 vzvol = spm_vol(fullfile(vzvol(1).folder, vzvol(1).name));
-vz = flip(spm_read_vols(vzvol), 3);
+% REMOVED: flip operation - assuming input data is already RAS oriented
+% vz = flip(spm_read_vols(vzvol), 3);
+vz = spm_read_vols(vzvol);
 
 [a,c,b,d] = size(vx);
 v = zeros([a,c,b,3,d],'single');
 
 % velocities are in cm/s, convert to mm/s
+% NOTE: The sign changes below (negating vx and vz) are related to velocity encoding
+% and coordinate system conventions, not image orientation. These should remain
+% regardless of RAS orientation, as they account for the phase encoding direction
+% and the relationship between phase and velocity in 4D flow MRI.
 
 v(:,:,:,2,:)=-squeeze(vx(:,:,:,:))*10;
 v(:,:,:,1,:)=squeeze(vy(:,:,:,:))*10;
@@ -168,6 +182,8 @@ imageData.CD = timeMIP;
 imageData.V = vMean;
 imageData.Segmented = segment;
 imageData.Header = json_mag;
+% Store original affine matrix to preserve image orientation
+imageData.OriginalAffine = originalAffine;
 
 %save("C:\Users\u149879\Desktop\trial\original_ABI\ABI_nifti",imageData,'-mat')
 

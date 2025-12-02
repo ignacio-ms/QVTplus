@@ -501,7 +501,10 @@ function paramMap_GUI()
     appData.tofVolume = tofVolume;
     appData.tofMat = tofMat;
     appData.tofThresholds = tofThresh;
-    appData.tofPatch = [];
+    % OLD CODE: tofPatch for isosurface rendering (commented out - replaced with volshow)
+    % appData.tofPatch = [];
+    appData.tofVolshow = []; % volshow viewer handle
+    appData.tofWindow = []; % TOF window handle
     appData.showTOF = false;
     appData.atlasVolume = atlasVolume;
     appData.atlasPatches = [];
@@ -515,7 +518,7 @@ function paramMap_GUI()
     cmapDropdown.Callback = @(src, ~) changeColormap(app.figure, src.Value);
     cbMinEdit.Callback = @(src, ~) updateColorLimits(app.figure, 'min', str2double(src.String));
     cbMaxEdit.Callback = @(src, ~) updateColorLimits(app.figure, 'max', str2double(src.String));
-    alphaSlider.Callback = @(~, ~) applyMaskAlphas(app.figure);
+    alphaSlider.Callback = @(~, ~) applyMaskAlphasAndTOF(app.figure);
     syncCheckbox.Callback = @(~, ~) applyMaskAlphas(app.figure);
     tofCheckbox.Callback = @(src, ~) toggleTOFOverlay(app.figure, logical(src.Value));
     tofMinEdit.Callback = @(src, ~) updateTOFThreshold(app.figure, 'min', str2double(src.String));
@@ -1411,9 +1414,16 @@ function updateTOFOverlay(fig)
     end
     enabled = isfield(appData, 'showTOF') && appData.showTOF;
     if ~enabled
-        if isfield(appData, 'tofPatch') && ~isempty(appData.tofPatch) && isgraphics(appData.tofPatch) && isscalar(appData.tofPatch)
-            set(appData.tofPatch, 'Visible', 'off');
+        % Close TOF window if it exists
+        if isfield(appData, 'tofWindow') && ~isempty(appData.tofWindow) && isgraphics(appData.tofWindow)
+            try
+                close(appData.tofWindow);
+            catch
+            end
+            appData.tofWindow = [];
+            appData.tofVolshow = [];
         end
+        guidata(fig, appData);
         return;
     end
     if isempty(appData.tofThresholds)
@@ -1421,10 +1431,8 @@ function updateTOFOverlay(fig)
         if isempty(finiteVals)
             return;
         end
-        appData.tofThresholds = [prctile(finiteVals, 70), prctile(finiteVals, 99.5)];
-        if appData.tofThresholds(1) == appData.tofThresholds(2)
-            appData.tofThresholds = [min(finiteVals), max(finiteVals)];
-        end
+        % Set default thresholds to min and max of volume intensity
+        appData.tofThresholds = [min(finiteVals), max(finiteVals)];
         if isfield(appData, 'tofMinEdit') && isgraphics(appData.tofMinEdit)
             appData.tofMinEdit.String = sprintf('%.2f', appData.tofThresholds(1));
         end
@@ -1434,89 +1442,48 @@ function updateTOFOverlay(fig)
         guidata(fig, appData);
         appData = guidata(fig); % refresh local copy
     end
-    segVol = permute(appData.tofVolume, [2 1 3]);
+    % Prepare volume data with thresholding for volshow
+    % Note: volshow expects data in original orientation (no permutation needed)
+    tofVol = appData.tofVolume;
     thresh = appData.tofThresholds;
-    mask = segVol >= thresh(1) & segVol <= thresh(2);
-    if ~any(mask(:))
-        if isfield(appData, 'tofPatch') && ~isempty(appData.tofPatch) && isgraphics(appData.tofPatch) && isscalar(appData.tofPatch)
-            set(appData.tofPatch, 'Visible', 'off');
-        end
-        return;
-    end
     
-    % Downsample for performance - reduce resolution to make rendering manageable
-    % Aggressively downsample large volumes to keep rendering smooth
-    origSize = size(mask);
-    maxVoxels = 50000; % Target maximum voxels for performance (reduced from 100k)
-    currentVoxels = numel(mask);
+    % Apply thresholding: values outside range are set to 0 (transparent in volshow)
+    % Values within range are kept for volume rendering
+    tofVolMasked = tofVol;
+    tofVolMasked(tofVol < thresh(1) | tofVol > thresh(2)) = 0;
     
-    % Calculate downsampling factor to target maxVoxels
-    if currentVoxels > maxVoxels
-        % Use cubic root since we're downsampling in 3D
-        downsampleFactor = ceil((currentVoxels / maxVoxels)^(1/3));
-    else
-        downsampleFactor = 1;
-    end
+    % Always update the volume, even if thresholded out
+    % This ensures the volume comes back when thresholds are adjusted
     
-    % Minimum downsampling of 2 for large volumes
-    if currentVoxels > 200000
-        downsampleFactor = max(downsampleFactor, 3);
-    elseif currentVoxels > 100000
-        downsampleFactor = max(downsampleFactor, 2);
-    end
-    
-    if downsampleFactor > 1
-        newSize = max(1, round(origSize / downsampleFactor));
-        % Use imresize3 if available, otherwise downsample manually
-        if exist('imresize3', 'file')
-            mask = imresize3(mask, newSize, 'nearest');
-        else
-            % Manual downsampling by taking every Nth voxel
-            idx1 = 1:downsampleFactor:origSize(1);
-            idx2 = 1:downsampleFactor:origSize(2);
-            idx3 = 1:downsampleFactor:origSize(3);
-            mask = mask(idx1, idx2, idx3);
-        end
-    end
-    
-    try
-        fv = isosurface(mask, 0.5);
-        % Scale vertices back to original coordinate space if downsampled
-        if downsampleFactor > 1 && ~isempty(fv.vertices)
-            fv.vertices = fv.vertices * downsampleFactor;
-        end
-    catch ME
-        warning('paramMap_GUI:TOFIsosurfaceFailed', ...
-                'Failed to create TOF isosurface: %s', ME.message);
-        return;
-    end
-    if isempty(fv.vertices)
-        if isfield(appData, 'tofPatch') && ~isempty(appData.tofPatch) && isgraphics(appData.tofPatch) && isscalar(appData.tofPatch)
-            set(appData.tofPatch, 'Visible', 'off');
-        end
-        return;
-    end
-    % Get transparency from slider
+    % Get transparency values
     tofAlpha = 0.15; % default
     if isfield(appData, 'tofAlphaSlider') && isgraphics(appData.tofAlphaSlider)
         tofAlpha = appData.tofAlphaSlider.Value;
     end
     
-    if ~isfield(appData, 'tofPatch') || isempty(appData.tofPatch) || ~isscalar(appData.tofPatch) || ~isgraphics(appData.tofPatch)
-        tofPatch = patch(appData.axes, fv, ...
-            'FaceColor', [1 0.9 0.6], ...
-            'EdgeColor', 'none', ...
-            'FaceAlpha', tofAlpha, ...
-            'HitTest', 'off', ...
-            'Visible', 'on');
-        appData.tofPatch = tofPatch;
-    else
-        set(appData.tofPatch, ...
-            'Vertices', fv.vertices, ...
-            'Faces', fv.faces, ...
-            'FaceAlpha', tofAlpha, ...
-            'Visible', 'on');
+    % Get mask alpha (for overlaying masks in TOF window)
+    maskAlpha = 0.3; % default
+    if isfield(appData, 'alphaSlider') && isgraphics(appData.alphaSlider)
+        maskAlpha = appData.alphaSlider.Value;
     end
+    
+    % Use volshow() in a separate window with interactive controls
+    try
+        % Check if TOF window already exists
+        if ~isfield(appData, 'tofWindow') || isempty(appData.tofWindow) || ...
+           ~isgraphics(appData.tofWindow)
+            % Create new TOF window with volshow and controls
+            appData = createTOFWindow(fig, appData, tofVolMasked, tofAlpha, maskAlpha);
+        else
+            % Update existing TOF window
+            appData = updateTOFWindow(fig, appData, tofVolMasked, tofAlpha, maskAlpha);
+        end
+    catch ME
+        warning('paramMap_GUI:TOFVolshowFailed', ...
+                'Failed to create/update TOF volume viewer: %s. Make sure volshow is available (Image Processing Toolbox).', ME.message);
+        return;
+    end
+    
     guidata(fig, appData);
 end
 
@@ -1665,4 +1632,662 @@ function idx = nearestBranchIndex(appData, pos)
     end
 end
 
+% Function to apply mask alphas to both main window and TOF window
+function applyMaskAlphasAndTOF(fig)
+    % Apply mask alphas to main window
+    applyMaskAlphas(fig);
+    
+    % Update TOF window if it exists
+    appData = guidata(fig);
+    if isfield(appData, 'tofWindow') && ~isempty(appData.tofWindow) && isgraphics(appData.tofWindow)
+        updateTOFOverlay(fig);
+    end
+end
+
+% Function to create TOF window with volshow and interactive controls
+function appData = createTOFWindow(mainFig, appData, tofVolMasked, tofAlpha, maskAlpha)
+    % Create a custom figure with proper layout before volshow
+    screenSize = get(0, 'ScreenSize');
+    winWidth = round(screenSize(3) * 0.85);
+    winHeight = round(screenSize(4) * 0.85);
+    winX = round((screenSize(3) - winWidth) / 2);
+    winY = round((screenSize(4) - winHeight) / 2);
+    
+    % Create uifigure (required for volshow 3D rendering)
+    tofFig = uifigure('Name', 'TOF Volume Viewer', ...
+        'Position', [winX winY winWidth winHeight], ...
+        'CloseRequestFcn', @(src,~) closeTOFWindow(mainFig, src), ...
+        'Color', [0.94 0.94 0.94]);
+    
+    % Create main panel for volshow (left side)
+    volshowPanel = uipanel('Parent', tofFig, ...
+        'Units', 'normalized', ...
+        'Position', [0.01 0.01 0.76 0.98], ...
+        'BackgroundColor', [0 0 0], ...
+        'BorderType', 'none');
+    
+    % Create control panel (right side)
+    controlPanel = uipanel('Parent', tofFig, ...
+        'Title', 'TOF Controls', ...
+        'Units', 'normalized', ...
+        'Position', [0.78 0.01 0.21 0.98], ...
+        'BackgroundColor', [0.94 0.94 0.94], ...
+        'FontSize', 9);
+    
+    % Create volshow in the left panel
+    try
+        volshowObj = volshow(tofVolMasked, ...
+            'Parent', volshowPanel, ...
+            'Alphamap', linspace(0, tofAlpha, 256), ...
+            'Colormap', repmat([1 0.9 0.6], 256, 1), ...
+            'RenderingStyle', 'VolumeRendering');
+        
+        % Get volshow's axes
+        volshowAxes = ancestor(volshowObj.Parent, 'axes');
+        if isempty(volshowAxes)
+            volshowAxes = volshowObj.Parent;
+        end
+        
+        % Store volshow axes reference for overlay
+        appData.tofVolshowAxes = volshowAxes;
+        
+        % Get volume intensity range for sliders
+        finiteVals = appData.tofVolume(isfinite(appData.tofVolume));
+        volMin = min(finiteVals);
+        volMax = max(finiteVals);
+        currentMin = appData.tofThresholds(1);
+        currentMax = appData.tofThresholds(2);
+        
+        % TOF Min threshold control
+        uicontrol('Style', 'text', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.90 0.90 0.05], ...
+            'String', 'TOF Min Threshold', ...
+            'BackgroundColor', [0.94 0.94 0.94], ...
+            'FontSize', 9, ...
+            'HorizontalAlignment', 'left');
+        tofMinSlider = uicontrol('Style', 'slider', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.85 0.90 0.04], ...
+            'Min', volMin, ...
+            'Max', volMax, ...
+            'Value', currentMin, ...
+            'SliderStep', [0.01 0.1], ...
+            'Callback', @(src,~) updateTOFThresholdFromSlider(mainFig, 'min', src.Value));
+        tofMinEdit = uicontrol('Style', 'edit', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.80 0.90 0.04], ...
+            'String', sprintf('%.2f', currentMin), ...
+            'BackgroundColor', [1 1 1], ...
+            'FontSize', 9, ...
+            'Callback', @(src,~) updateTOFThresholdFromEdit(mainFig, 'min', str2double(src.String)));
+        
+        % TOF Max threshold control
+        uicontrol('Style', 'text', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.75 0.90 0.05], ...
+            'String', 'TOF Max Threshold', ...
+            'BackgroundColor', [0.94 0.94 0.94], ...
+            'FontSize', 9, ...
+            'HorizontalAlignment', 'left');
+        tofMaxSlider = uicontrol('Style', 'slider', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.70 0.90 0.04], ...
+            'Min', volMin, ...
+            'Max', volMax, ...
+            'Value', currentMax, ...
+            'SliderStep', [0.01 0.1], ...
+            'Callback', @(src,~) updateTOFThresholdFromSlider(mainFig, 'max', src.Value));
+        tofMaxEdit = uicontrol('Style', 'edit', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.65 0.90 0.04], ...
+            'String', sprintf('%.2f', currentMax), ...
+            'BackgroundColor', [1 1 1], ...
+            'FontSize', 9, ...
+            'Callback', @(src,~) updateTOFThresholdFromEdit(mainFig, 'max', str2double(src.String)));
+        
+        % TOF Alpha control
+        uicontrol('Style', 'text', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.60 0.90 0.05], ...
+            'String', 'TOF Alpha', ...
+            'BackgroundColor', [0.94 0.94 0.94], ...
+            'FontSize', 9, ...
+            'HorizontalAlignment', 'left');
+        tofAlphaSliderTOF = uicontrol('Style', 'slider', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.55 0.90 0.04], ...
+            'Min', 0, ...
+            'Max', 1, ...
+            'Value', tofAlpha, ...
+            'SliderStep', [0.05 0.1], ...
+            'Callback', @(src,~) updateTOFAlphaFromTOFWindow(mainFig, src.Value));
+        
+        % Mask Alpha control
+        uicontrol('Style', 'text', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.50 0.90 0.05], ...
+            'String', 'Mask Alpha', ...
+            'BackgroundColor', [0.94 0.94 0.94], ...
+            'FontSize', 9, ...
+            'HorizontalAlignment', 'left');
+        maskAlphaSliderTOF = uicontrol('Style', 'slider', ...
+            'Parent', controlPanel, ...
+            'Units', 'normalized', ...
+            'Position', [0.05 0.45 0.90 0.04], ...
+            'Min', 0, ...
+            'Max', 1, ...
+            'Value', maskAlpha, ...
+            'SliderStep', [0.05 0.1], ...
+            'Callback', @(src,~) updateMaskAlphaFromTOFWindow(mainFig, src.Value));
+        
+        % Store handles in appData
+        appData.tofWindow = tofFig;
+        appData.tofVolshow = volshowObj;
+        appData.tofMinSlider = tofMinSlider;
+        appData.tofMaxSlider = tofMaxSlider;
+        appData.tofMinEditTOF = tofMinEdit;
+        appData.tofMaxEditTOF = tofMaxEdit;
+        appData.tofAlphaSliderTOF = tofAlphaSliderTOF;
+        appData.maskAlphaSliderTOF = maskAlphaSliderTOF;
+        appData.tofMaskPatches = []; % Store mask overlay patches
+        
+        % Add mask overlays to TOF window
+        appData = addMaskOverlaysToTOF(mainFig, appData, maskAlpha);
+        
+    catch ME
+        if exist('tofFig', 'var') && isgraphics(tofFig)
+            close(tofFig);
+        end
+        rethrow(ME);
+    end
+end
+
+% Function to add vessel mask overlays to TOF window
+function appData = addMaskOverlaysToTOF(mainFig, appData, maskAlpha)
+    % Get the segmentation volume
+    if ~isfield(appData, 'data_struct') || ~isfield(appData.data_struct, 'segment')
+        return;
+    end
+    
+    segVol = appData.data_struct.segment;
+    if isempty(segVol)
+        return;
+    end
+    
+    try
+        % Get the volshow panel (parent of volshow axes)
+        volshowPanel = [];
+        if isfield(appData, 'tofVolshowAxes') && ~isempty(appData.tofVolshowAxes) && isgraphics(appData.tofVolshowAxes)
+            volshowPanel = ancestor(appData.tofVolshowAxes, 'uipanel');
+            if isempty(volshowPanel)
+                volshowPanel = appData.tofWindow;
+            end
+        else
+            volshowPanel = appData.tofWindow;
+        end
+        
+        % Get volshow axes position
+        volshowAxesPos = [0 0 1 1]; % Full panel by default
+        if isfield(appData, 'tofVolshowAxes') && ~isempty(appData.tofVolshowAxes) && isgraphics(appData.tofVolshowAxes)
+            if isprop(appData.tofVolshowAxes, 'Position')
+                volshowAxesPos = appData.tofVolshowAxes.Position;
+            end
+        end
+        
+        % Create a separate overlay axes in the volshow panel
+        % This allows us to render patches while volshow renders the volume
+        overlayAxes = axes('Parent', volshowPanel, ...
+            'Units', 'normalized', ...
+            'Position', volshowAxesPos, ...
+            'Color', 'none', ...
+            'Visible', 'on', ...
+            'HitTest', 'on', ...  % Make it interactive
+            'XLimMode', 'manual', ...
+            'YLimMode', 'manual', ...
+            'ZLimMode', 'manual', ...
+            'XTick', [], ...
+            'YTick', [], ...
+            'ZTick', [], ...
+            'XColor', 'none', ...
+            'YColor', 'none', ...
+            'ZColor', 'none');
+        
+        % Make axes interactive - enable rotation and zoom
+        rotate3d(overlayAxes, 'on');
+        
+        % Bring overlay axes to front so patches are visible
+        uistack(overlayAxes, 'top');
+        
+        % Permute segmentation to match coordinate system (same as main window)
+        segVolPerm = permute(segVol, [2 1 3]);
+        
+        % Get unique labels and sort them for consistent coloring
+        labels = unique(segVolPerm(segVolPerm > 0));
+        labels = sort(labels); % Ensure consistent ordering
+        if isempty(labels)
+            return;
+        end
+        
+        % Create isosurfaces for each label with distinct colors
+        % Use a colormap that provides good distinction
+        numLabels = numel(labels);
+        if numLabels <= 10
+            colors = lines(numLabels);
+        elseif numLabels <= 20
+            colors = hsv(numLabels);
+        else
+            % For many labels, use a more varied colormap with better distribution
+            colors = hsv(numLabels);
+            % Adjust saturation and value for better visibility
+            colors(:, 2) = colors(:, 2) * 0.9 + 0.1; % Saturation
+            colors(:, 3) = colors(:, 3) * 0.7 + 0.3; % Brightness
+        end
+        
+        maskPatches = gobjects(numLabels, 1);
+        patchIdx = 1;
+        
+        for i = 1:numLabels
+            label = labels(i);
+            mask = segVolPerm == label;
+            if ~any(mask(:))
+                continue;
+            end
+            
+            try
+                % Downsample mask for performance
+                origSize = size(mask);
+                downsampleFactor = 2;
+                if any(origSize > 100)
+                    idx1 = 1:downsampleFactor:origSize(1);
+                    idx2 = 1:downsampleFactor:origSize(2);
+                    idx3 = 1:downsampleFactor:origSize(3);
+                    mask = mask(idx1, idx2, idx3);
+                end
+                
+                fv = isosurface(mask, 0.5);
+                if isempty(fv.vertices)
+                    continue;
+                end
+                
+                % Scale vertices back if downsampled
+                if downsampleFactor > 1
+                    fv.vertices = fv.vertices * downsampleFactor;
+                end
+                
+                % Use the color for this specific label index (i, not mod)
+                labelColor = colors(i, :);
+                
+                maskPatches(patchIdx) = patch(overlayAxes, fv, ...
+                    'FaceColor', labelColor, ...
+                    'EdgeColor', 'none', ...
+                    'FaceAlpha', maskAlpha, ...
+                    'HitTest', 'off', ...  % Patches don't intercept clicks
+                    'PickableParts', 'none', ...
+                    'Visible', 'on');
+                
+                % Store label ID for reference
+                maskPatches(patchIdx).UserData = label;
+                patchIdx = patchIdx + 1;
+            catch ME
+                warning('paramMap_GUI:TOFMaskPatchFailed', ...
+                        'Failed to create patch for label %d: %s', label, ME.message);
+                continue;
+            end
+        end
+        
+        % Store only valid patches
+        if patchIdx > 1
+            validPatches = maskPatches(1:patchIdx-1);
+            valid = false(size(validPatches));
+            for j = 1:numel(validPatches)
+                valid(j) = isgraphics(validPatches(j));
+            end
+            appData.tofMaskPatches = validPatches(valid);
+        else
+            appData.tofMaskPatches = gobjects(0);
+        end
+        appData.tofOverlayAxes = overlayAxes;
+        
+        % Debug: check if patches were created
+        if isempty(appData.tofMaskPatches)
+            warning('paramMap_GUI:NoMaskPatches', 'No mask patches were created for TOF overlay');
+        end
+        
+        % Set axes properties to match volume dimensions
+        % Use TOF volume size to match volshow's coordinate system
+        try
+            tofVolSize = size(appData.tofVolume);
+            segVolSize = size(segVolPerm);
+            
+            % volshow uses 1-based indexing, so set limits to match volume dimensions
+            % The coordinate system should match: [x, y, z] = [columns, rows, slices]
+            set(overlayAxes, ...
+                'XLim', [0.5 segVolSize(2)+0.5], ...
+                'YLim', [0.5 segVolSize(1)+0.5], ...
+                'ZLim', [0.5 segVolSize(3)+0.5]);
+            
+            axis(overlayAxes, 'equal');
+            axis(overlayAxes, 'vis3d');
+            
+            % Set default view (sagittal-like, matching main window)
+            view(overlayAxes, [1 0.1 0.1]);
+            
+            % Add lighting
+            try
+                camlight(overlayAxes, 'headlight');
+                lighting(overlayAxes, 'gouraud');
+            catch
+                % Lighting might not work on all axes types
+            end
+            
+            % Bring patches to front so they're visible
+            if ~isempty(appData.tofMaskPatches)
+                for j = 1:numel(appData.tofMaskPatches)
+                    if isgraphics(appData.tofMaskPatches(j))
+                        uistack(appData.tofMaskPatches(j), 'top');
+                    end
+                end
+            end
+            
+            % Ensure axes is on top for interaction and visibility
+            uistack(overlayAxes, 'top');
+            
+            % Force a redraw
+            drawnow;
+        catch ME
+            warning('paramMap_GUI:TOFAxesSetupFailed', ...
+                    'Failed to setup overlay axes: %s', ME.message);
+        end
+        
+    catch ME
+        warning('paramMap_GUI:TOFMaskOverlayFailed', ...
+                'Failed to add mask overlays to TOF window: %s', ME.message);
+    end
+end
+
+% Function to update TOF window
+function appData = updateTOFWindow(mainFig, appData, tofVolMasked, tofAlpha, maskAlpha)
+    if isfield(appData, 'tofVolshow') && ~isempty(appData.tofVolshow)
+        try
+            % Always update volshow data and settings, even if thresholded out
+            if isvalid(appData.tofVolshow)
+                appData.tofVolshow.VolumeData = tofVolMasked;
+                appData.tofVolshow.Alphamap = linspace(0, tofAlpha, 256);
+                appData.tofVolshow.Visible = 'on';
+                drawnow; % Force update
+            end
+        catch ME
+            warning('paramMap_GUI:TOFUpdateFailed', 'Failed to update TOF volume: %s', ME.message);
+        end
+    end
+    
+    % Update control values
+    if isfield(appData, 'tofMinSlider') && isgraphics(appData.tofMinSlider)
+        appData.tofMinSlider.Value = appData.tofThresholds(1);
+    end
+    if isfield(appData, 'tofMaxSlider') && isgraphics(appData.tofMaxSlider)
+        appData.tofMaxSlider.Value = appData.tofThresholds(2);
+    end
+    if isfield(appData, 'tofMinEditTOF') && isgraphics(appData.tofMinEditTOF)
+        appData.tofMinEditTOF.String = sprintf('%.2f', appData.tofThresholds(1));
+    end
+    if isfield(appData, 'tofMaxEditTOF') && isgraphics(appData.tofMaxEditTOF)
+        appData.tofMaxEditTOF.String = sprintf('%.2f', appData.tofThresholds(2));
+    end
+    if isfield(appData, 'tofAlphaSliderTOF') && isgraphics(appData.tofAlphaSliderTOF)
+        appData.tofAlphaSliderTOF.Value = tofAlpha;
+    end
+    if isfield(appData, 'maskAlphaSliderTOF') && isgraphics(appData.maskAlphaSliderTOF)
+        appData.maskAlphaSliderTOF.Value = maskAlpha;
+    end
+    
+    % Create mask overlays if they don't exist
+    if ~isfield(appData, 'tofMaskPatches') || isempty(appData.tofMaskPatches)
+        appData = addMaskOverlaysToTOF(mainFig, appData, maskAlpha);
+    else
+        % Update mask overlay alpha
+        for i = 1:numel(appData.tofMaskPatches)
+            if isgraphics(appData.tofMaskPatches(i))
+                try
+                    appData.tofMaskPatches(i).FaceAlpha = maskAlpha;
+                catch
+                end
+            end
+        end
+    end
+end
+
+% Callback functions for TOF window controls
+function updateTOFThresholdFromSlider(mainFig, whichLimit, value)
+    appData = guidata(mainFig);
+    updateTOFThreshold(mainFig, whichLimit, value);
+    appData = guidata(mainFig); % Refresh after update
+    % Update edit box in TOF window
+    if strcmp(whichLimit, 'min') && isfield(appData, 'tofMinEditTOF') && isgraphics(appData.tofMinEditTOF)
+        appData.tofMinEditTOF.String = sprintf('%.2f', value);
+    elseif strcmp(whichLimit, 'max') && isfield(appData, 'tofMaxEditTOF') && isgraphics(appData.tofMaxEditTOF)
+        appData.tofMaxEditTOF.String = sprintf('%.2f', value);
+    end
+    guidata(mainFig, appData);
+end
+
+function updateTOFThresholdFromEdit(mainFig, whichLimit, value)
+    if ~isfinite(value)
+        return;
+    end
+    updateTOFThreshold(mainFig, whichLimit, value);
+    % Update slider in TOF window
+    appData = guidata(mainFig);
+    if strcmp(whichLimit, 'min') && isfield(appData, 'tofMinSlider') && isgraphics(appData.tofMinSlider)
+        appData.tofMinSlider.Value = value;
+    elseif strcmp(whichLimit, 'max') && isfield(appData, 'tofMaxSlider') && isgraphics(appData.tofMaxSlider)
+        appData.tofMaxSlider.Value = value;
+    end
+end
+
+function updateTOFAlphaFromTOFWindow(mainFig, value)
+    appData = guidata(mainFig);
+    if isfield(appData, 'tofAlphaSlider') && isgraphics(appData.tofAlphaSlider)
+        appData.tofAlphaSlider.Value = value;
+    end
+    guidata(mainFig, appData);
+    % Update TOF overlay with new alpha
+    updateTOFOverlay(mainFig);
+end
+
+function updateMaskAlphaFromTOFWindow(mainFig, value)
+    appData = guidata(mainFig);
+    if isfield(appData, 'alphaSlider') && isgraphics(appData.alphaSlider)
+        appData.alphaSlider.Value = value;
+    end
+    guidata(mainFig, appData);
+    applyMaskAlphasAndTOF(mainFig);
+end
+
+function closeTOFWindow(mainFig, tofFig)
+    appData = guidata(mainFig);
+    if isfield(appData, 'tofVolshow') && ~isempty(appData.tofVolshow)
+        try
+            delete(appData.tofVolshow);
+        catch
+        end
+        appData.tofVolshow = [];
+    end
+    appData.tofWindow = [];
+    if isfield(appData, 'showTOF')
+        appData.showTOF = false;
+    end
+    if isfield(appData, 'tofCheckbox') && isgraphics(appData.tofCheckbox)
+        appData.tofCheckbox.Value = 0;
+    end
+    guidata(mainFig, appData);
+    delete(tofFig);
+end
+
+% Helper function to create volume rendering in the same axes
+function patches = createVolumeRendering(ax, volume, alpha, color, affineMat)
+    % Create volume rendering using multiple isosurfaces at different thresholds
+    % This simulates volshow's volume rendering but works in regular axes
+    
+    patches = {};
+    
+    % Get volume dimensions
+    volSize = size(volume);
+    
+    % Create coordinate grids
+    % Transform voxel coordinates to world coordinates using affine matrix
+    [x, y, z] = meshgrid(1:volSize(2), 1:volSize(1), 1:volSize(3));
+    
+    % Apply affine transformation to get world coordinates
+    if ~isempty(affineMat) && size(affineMat, 1) == 4 && size(affineMat, 2) == 4
+        % Convert voxel coordinates to homogeneous coordinates
+        coords = [x(:), y(:), z(:), ones(numel(x), 1)]';
+        % Transform to world coordinates
+        worldCoords = affineMat * coords;
+        % Reshape back to volume dimensions
+        x = reshape(worldCoords(1, :), volSize);
+        y = reshape(worldCoords(2, :), volSize);
+        z = reshape(worldCoords(3, :), volSize);
+    end
+    
+    % Find non-zero values for rendering
+    validMask = volume > 0;
+    if ~any(validMask(:))
+        return;
+    end
+    
+    % Get intensity range for thresholding
+    validVals = volume(validMask);
+    minVal = min(validVals);
+    maxVal = max(validVals);
+    
+    % Create multiple isosurfaces at different thresholds for volume rendering effect
+    % Use fewer isosurfaces for performance, but enough for smooth appearance
+    numIsosurfaces = 8;
+    thresholds = linspace(minVal + 0.1*(maxVal-minVal), maxVal, numIsosurfaces);
+    
+    % Calculate alpha for each isosurface (higher intensity = more opaque)
+    alphas = linspace(alpha * 0.3, alpha, numIsosurfaces);
+    
+    for i = 1:numIsosurfaces
+        try
+            % Create isosurface at this threshold
+            fv = isosurface(x, y, z, volume, thresholds(i));
+            
+            if ~isempty(fv.vertices)
+                % Create patch with appropriate transparency
+                p = patch(ax, fv, ...
+                    'FaceColor', color, ...
+                    'EdgeColor', 'none', ...
+                    'FaceAlpha', alphas(i), ...
+                    'HitTest', 'off', ...
+                    'Visible', 'on');
+                patches{end+1} = p;
+            end
+        catch
+            % Skip if isosurface creation fails
+            continue;
+        end
+    end
+    
+    % If no isosurfaces were created, create a single one at median threshold
+    if isempty(patches)
+        try
+            fv = isosurface(x, y, z, volume, median(validVals));
+            if ~isempty(fv.vertices)
+                p = patch(ax, fv, ...
+                    'FaceColor', color, ...
+                    'EdgeColor', 'none', ...
+                    'FaceAlpha', alpha, ...
+                    'HitTest', 'off', ...
+                    'Visible', 'on');
+                patches{1} = p;
+            end
+        catch
+        end
+    end
+end
+
+% Helper function to update existing volume rendering
+function updateVolumeRendering(patches, volume, alpha, affineMat)
+    % Update existing volume rendering patches with new data
+    
+    if isempty(patches)
+        return;
+    end
+    
+    % Get volume dimensions
+    volSize = size(volume);
+    
+    % Create coordinate grids
+    [x, y, z] = meshgrid(1:volSize(2), 1:volSize(1), 1:volSize(3));
+    
+    % Apply affine transformation
+    if ~isempty(affineMat) && size(affineMat, 1) == 4 && size(affineMat, 2) == 4
+        coords = [x(:), y(:), z(:), ones(numel(x), 1)]';
+        worldCoords = affineMat * coords;
+        x = reshape(worldCoords(1, :), volSize);
+        y = reshape(worldCoords(2, :), volSize);
+        z = reshape(worldCoords(3, :), volSize);
+    end
+    
+    % Find valid values
+    validMask = volume > 0;
+    if ~any(validMask(:))
+        % Hide all patches if no data
+        for i = 1:length(patches)
+            if isgraphics(patches{i}) && isvalid(patches{i})
+                patches{i}.Visible = 'off';
+            end
+        end
+        return;
+    end
+    
+    validVals = volume(validMask);
+    minVal = min(validVals);
+    maxVal = max(validVals);
+    
+    % Update patches
+    numIsosurfaces = min(length(patches), 8);
+    thresholds = linspace(minVal + 0.1*(maxVal-minVal), maxVal, numIsosurfaces);
+    alphas = linspace(alpha * 0.3, alpha, numIsosurfaces);
+    
+    for i = 1:numIsosurfaces
+        if i <= length(patches) && isgraphics(patches{i}) && isvalid(patches{i})
+            try
+                % Create new isosurface
+                fv = isosurface(x, y, z, volume, thresholds(i));
+                if ~isempty(fv.vertices)
+                    % Update patch
+                    set(patches{i}, ...
+                        'Vertices', fv.vertices, ...
+                        'Faces', fv.faces, ...
+                        'FaceAlpha', alphas(i), ...
+                        'Visible', 'on');
+                else
+                    patches{i}.Visible = 'off';
+                end
+            catch
+                patches{i}.Visible = 'off';
+            end
+        end
+    end
+    
+    % Hide extra patches if we have fewer thresholds now
+    for i = numIsosurfaces + 1:length(patches)
+        if isgraphics(patches{i}) && isvalid(patches{i})
+            patches{i}.Visible = 'off';
+        end
+    end
+end
 
