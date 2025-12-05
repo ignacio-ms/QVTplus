@@ -18,7 +18,6 @@ function paramMap_GUI()
         disp('paramMap_GUI: No folder selected. Exiting.');
         return;
     end
-
     matInfo = dir(fullfile(outputDir, 'qvtData_ISOfix_*.mat'));
     if isempty(matInfo)
         error('paramMap_GUI:MissingData', ...
@@ -282,8 +281,8 @@ function paramMap_GUI()
 
     % Group 4: Atlas Overlay (Reorganized)
     uicontrol('Style', 'text', ...
-                            'Parent', app.figure, ...
-                            'Units', 'normalized', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
               'Position', [0.66 0.77 0.09 0.022], ...
               'String', 'Atlas Alpha', ...
               'BackgroundColor', [1 1 1], ...
@@ -291,8 +290,8 @@ function paramMap_GUI()
               'FontSize', 8, ...
               'HorizontalAlignment', 'left');
     atlasAlphaSlider = uicontrol('Style', 'slider', ...
-                            'Parent', app.figure, ...
-                            'Units', 'normalized', ...
+                                 'Parent', app.figure, ...
+                                 'Units', 'normalized', ...
                                  'Position', [0.66 0.74 0.09 0.028], ...
                                  'Min', 0, ...
                                  'Max', 1, ...
@@ -312,29 +311,70 @@ function paramMap_GUI()
 
     % Group 5: Action Buttons
     focusButton = uicontrol('Style', 'pushbutton', ...
-              'Parent', app.figure, ...
-              'Units', 'normalized', ...
+                            'Parent', app.figure, ...
+                            'Units', 'normalized', ...
                             'Position', [0.66 0.68 0.10 0.028], ...
                             'String', 'Focus LOC', ...
                             'FontSize', 8);
 
     resetButton = uicontrol('Style', 'pushbutton', ...
-                                 'Parent', app.figure, ...
-                                 'Units', 'normalized', ...
+                            'Parent', app.figure, ...
+                            'Units', 'normalized', ...
                             'Position', [0.77 0.68 0.10 0.028], ...
                             'String', 'Reset', ...
                             'FontSize', 8, ...
                             'Callback', @(~,~) resetView(app.figure));
 
-    infoBox = uicontrol('Style', 'text', ...
+    % Vector Settings (Thickness & Scale) - Moved ABOVE Checkbox position
+    uicontrol('Style', 'text', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
+              'Position', [0.88 0.85 0.10 0.022], ...
+              'String', 'Vec Scale', ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
+              'FontSize', 8, ...
+              'HorizontalAlignment', 'left');
+    vecScaleEdit = uicontrol('Style', 'edit', ...
+                             'Parent', app.figure, ...
+                             'Units', 'normalized', ...
+                             'Position', [0.88 0.825 0.10 0.028], ...
+                             'String', '2.5', ...
+                             'BackgroundColor', [1 1 1], ...
+                             'ForegroundColor', [0 0 0], ...
+                             'FontSize', 8, ...
+                             'Callback', @(~,~) updateVectors(app.figure));
+
+    uicontrol('Style', 'text', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
+              'Position', [0.88 0.795 0.10 0.022], ...
+              'String', 'Vec Thick', ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
+              'FontSize', 8, ...
+              'HorizontalAlignment', 'left');
+    vecThickEdit = uicontrol('Style', 'edit', ...
+                             'Parent', app.figure, ...
+                             'Units', 'normalized', ...
+                             'Position', [0.88 0.77 0.10 0.028], ...
+                             'String', '3.0', ...
+                             'BackgroundColor', [1 1 1], ...
+                             'ForegroundColor', [0 0 0], ...
+                             'FontSize', 8, ...
+                             'Callback', @(~,~) updateVectors(app.figure));
+
+    % Vector Field Toggle - Moved slightly UP
+    vectorCheckbox = uicontrol('Style', 'checkbox', ...
                         'Parent', app.figure, ...
                         'Units', 'normalized', ...
-                        'Position', [0.65 0.02 0.34 0.24], ...
-                        'String', '', ...
-                        'HorizontalAlignment', 'left', ...
-                        'BackgroundColor', [1 1 1], ...
-                        'ForegroundColor', [0 0 0], ...
-                        'FontSize', 10);
+                               'Position', [0.88 0.73 0.10 0.028], ...
+                               'String', 'Vectors', ...
+                               'Value', 0, ...
+                               'BackgroundColor', [1 1 1], ...
+                               'ForegroundColor', [0 0 0], ...
+                               'FontSize', 8, ...
+                               'Callback', @(src,~) toggleVectors(app.figure, src.Value));
 
     % Images displayed in a row (1x4)
     app.axesMAG = axes('Parent', app.figure, ...
@@ -365,6 +405,63 @@ function paramMap_GUI()
                         'HandleVisibility', 'callback', ...
                         'HitTest', 'off');
 
+    % Animation Controls (Below Flow Chart) - Lowered position
+    playButton = uicontrol('Style', 'pushbutton', ...
+                           'Parent', app.figure, ...
+                           'Units', 'normalized', ...
+                           'Position', [0.66 0.18 0.05 0.025], ...
+                           'String', 'Play', ...
+                           'FontSize', 8, ...
+                           'Callback', @(src,~) toggleAnimation(app.figure, src));
+    
+    timeSlider = uicontrol('Style', 'slider', ...
+                           'Parent', app.figure, ...
+                           'Units', 'normalized', ...
+                           'Position', [0.72 0.18 0.26 0.025], ...
+                           'Min', 1, 'Max', data_struct.nframes, ...
+                           'Value', 1, ...
+                           'SliderStep', [1/(data_struct.nframes-1), 1/(data_struct.nframes-1)], ...
+                           'Callback', @(src,~) updateTimeFrame(app.figure, round(src.Value)));
+
+    % Info Box - Moved to Bottom-Left over render window
+    infoBox = uicontrol('Style', 'text', ...
+                        'Parent', app.figure, ...
+                        'Units', 'normalized', ...
+                        'Position', [0.02 0.02 0.12 0.14], ...
+                        'String', '', ...
+                        'HorizontalAlignment', 'left', ...
+                        'BackgroundColor', [1 1 1 0], ... % Force White Background
+                        'ForegroundColor', [0 0 0], ...
+                        'FontSize', 9);
+                        
+    % Attempt to make Info Box transparent (MATLAB R2014b+ limitation)
+    % User reported "completely black" with 'none'. 
+    % Reverting to White [1 1 1] to ensure visibility.
+    % To fake transparency, we would need to capture the axes background, 
+    % but simply White is safer and readable.
+    set(infoBox, 'BackgroundColor', [1 1 1]); 
+    
+    % 1x3 View Panel (Bottom Right)
+    app.axesCor = axes('Parent', app.figure, ...
+                       'Position', [0.65 0.02 0.10 0.14], ...
+                       'Color', 'w', ...
+                       'HandleVisibility', 'callback', ...
+                       'HitTest', 'off');
+    app.axesAx = axes('Parent', app.figure, ...
+                      'Position', [0.76 0.02 0.10 0.14], ...
+                      'Color', 'w', ...
+                      'HandleVisibility', 'callback', ...
+                      'HitTest', 'off');
+    app.axesZoom = axes('Parent', app.figure, ...
+                        'Position', [0.87 0.02 0.10 0.14], ...
+                        'Color', 'w', ...
+                        'HandleVisibility', 'callback', ...
+                        'HitTest', 'off');
+
+    setupCrossAxes(app.axesCor, 'Coronal');
+    setupCrossAxes(app.axesAx, 'Axial');
+    setupCrossAxes(app.axesZoom, '3D Zoom');
+
     setupCrossAxes(app.axesMAG, 'MAG');
     setupCrossAxes(app.axesCD, 'CD');
     setupCrossAxes(app.axesVelTA, 'Velocity (TA)');
@@ -377,6 +474,9 @@ function paramMap_GUI()
         warning('paramMap_GUI:CamlightInit','camlight failed: %s', ME.message);
     end
     lighting(app.axes, 'flat'); % Flat lighting to reduce smoothing appearance
+    
+    % Set initial camera zoom (Zoom in slightly)
+    camzoom(app.axes, 1.2);
 
     cb = colorbar(app.axes);
     cb.Color = [0 0 0];
@@ -442,6 +542,53 @@ function paramMap_GUI()
     appData.atlasPatches = [];
     appData.atlasLabels = [];
     appData.showAtlas = false;
+    
+    % Store handles
+    appData.vectorCheckbox = vectorCheckbox;
+    appData.vecThickEdit = vecThickEdit;
+    appData.vecScaleEdit = vecScaleEdit;
+    appData.playButton = playButton;
+    appData.timeSlider = timeSlider;
+    appData.axesCor = app.axesCor;
+    appData.axesAx = app.axesAx;
+    appData.axesZoom = app.axesZoom;
+
+    % Compute tangents for vector field
+    % Q: How is exactly the directions of the vectors being computed?
+    % A: Vectors are computed as the gradient of the vessel centerline coordinates.
+    %    The centerline is an ordered list of points (x,y,z).
+    %    The gradient vector at point i is derived from (P(i+1) - P(i-1)), representing
+    %    the tangent direction along the vessel path.
+    coords = data_struct.branchList(:, 1:3);
+    tangents = zeros(size(coords));
+    bIDs = unique(data_struct.branchList(:,4));
+    for i = 1:numel(bIDs)
+        mask = data_struct.branchList(:,4) == bIDs(i);
+        pts = coords(mask, :);
+        if size(pts,1) > 1
+            % Gradient along the path
+            t = gradient(pts')';
+            % Normalize
+            lens = sqrt(sum(t.^2, 2));
+            t = t ./ (lens + eps);
+            % Original direction (Brain arteries usually flow Up/Distal)
+            tangents(mask, :) = t;
+        end
+    end
+    appData.tangents = tangents;
+    appData.currentFrame = 1;
+    appData.isAnimating = false;
+    appData.timer = [];
+    
+    % Compute global flow range for consistent animation coloring (Absolute Magnitude)
+    allFlow = data_struct.flowPulsatile_val;
+    absFlow = abs(allFlow);
+    appData.globalFlowRange = [min(absFlow(:), [], 'omitnan'), max(absFlow(:), [], 'omitnan')];
+    if appData.globalFlowRange(1) >= appData.globalFlowRange(2)
+        appData.globalFlowRange(2) = appData.globalFlowRange(1) + 1;
+    end
+    
+    % Removed Velocity pre-computation as requested to stick to Flow
 
     guidata(app.figure, appData);
 
@@ -653,6 +800,32 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
                           'Visible', 'off', ...
                           'PickableParts', 'all', ...
                           'HitTest', 'on');
+    
+    % Initialize vector plot as a PATCH object for colored lines
+    % We use a patch with NaN separators or explicit faces to draw lines.
+    % Vertices will be updated in updateVectors.
+    % We also add a scatter3 for "arrow heads" or just rely on lines for now.
+    % To show direction, maybe just lines is not enough. 
+    % Let's add a second scatter plot for the "Heads" of the vectors.
+    
+    vectorShafts = patch(ax, ...
+                         'XData', [NaN NaN], 'YData', [NaN NaN], 'ZData', [NaN NaN], ...
+                         'CData', [NaN NaN], ...
+                         'EdgeColor', 'interp', ...
+                         'LineWidth', 2, ...
+                         'Visible', 'off', ...
+                         'HitTest', 'off', ...
+                         'PickableParts', 'none');
+                     
+    % We can use a cone marker for heads if we want, or just lines. 
+    % Let's stick to colored lines (shafts) first as it's efficient.
+    % If arrows are needed, we can add a scatter with 'v' or similar, rotated? Hard.
+    % Simple solution: Just colored lines for now, user asked for "vectors ... colored".
+    % Standard quiver3 cannot do this efficiently.
+    
+    scatterAll.UserData.vectorShafts = vectorShafts;
+    
+    % Store handle in axes appdata or output struct?
 end
 
 function locPlots = plotLocMarkers(ax, locInfo)
@@ -916,21 +1089,36 @@ function updateInfoBox(fig, key, locEntry)
 end
 
 function changeParameter(fig, newIndex)
-    applyParameterSelection(fig, newIndex, true);
+    % Stop animation if running
     appData = guidata(fig);
-    if ~isempty(appData.selection.selIndices)
-        scatterSel = appData.scatterSel;
-        scatterSel.CData = appData.paramData(appData.selection.selIndices);
+    if appData.isAnimating
+        toggleAnimation(fig, appData.playButton); 
+        % Re-fetch appData as toggleAnimation updates it
+        appData = guidata(fig);
     end
-    if ~isempty(appData.selection.locIndex)
-        locEntry = appData.locInfo(appData.selection.locIndex);
-        updateInfoBox(fig, appData.selection.key, locEntry);
-    end
-    if ~isempty(appData.selection.pointRow)
-        displayPointInfo(fig, appData.selection.pointRow);
-    end
+
+    applyParameterSelection(fig, newIndex, true);
+    % After changing parameter, update color limits to match THIS parameter's range
+    % The applyParameterSelection function handles caxis update if resetLimits=true.
+    % We ensured resetLimits=true above.
+    % But we need to make sure we don't accidentally stick to globalFlowRange.
+    % applyParameterSelection does: caxis(appData.axes, [minVal maxVal]);
+    % This is correct for static params.
+    
     guidata(fig, appData);
 end
+%         scatterSel = appData.scatterSel;
+%         scatterSel.CData = appData.paramData(appData.selection.selIndices);
+%     end
+%     if ~isempty(appData.selection.locIndex)
+%         locEntry = appData.locInfo(appData.selection.locIndex);
+%         updateInfoBox(fig, appData.selection.key, locEntry);
+%     end
+%     if ~isempty(appData.selection.pointRow)
+%         displayPointInfo(fig, appData.selection.pointRow);
+%     end
+%     guidata(fig, appData);
+% end
 
 function changeColormap(fig, idx)
     appData = guidata(fig);
@@ -1040,6 +1228,44 @@ function updateSelectedPoint(fig, rowIdx)
     updateCrossSections(fig, rowIdx);
     updateWaveform(fig, rowIdx);
     updatePlaneOverlay(fig, rowIdx);
+    update3DViews(fig, rowIdx);
+end
+
+function update3DViews(fig, rowIdx)
+    appData = guidata(fig);
+    coord = appData.branchList(rowIdx, 1:3);
+    r = 15; % Zoom radius
+    
+    % Coronal View (XZ)
+    ax = appData.axesCor;
+    copyobj(appData.axes.Children, ax);
+    axis(ax, 'equal'); axis(ax, 'off');
+    xlim(ax, coord(1) + [-r r]);
+    ylim(ax, coord(2) + [-r r]);
+    zlim(ax, coord(3) + [-r r]);
+    view(ax, [0 0]); 
+    title(ax, 'Coronal', 'Color', 'k', 'FontSize', 8);
+    
+    % Axial View (XY)
+    ax = appData.axesAx;
+    copyobj(appData.axes.Children, ax);
+    axis(ax, 'equal'); axis(ax, 'off');
+    xlim(ax, coord(1) + [-r r]);
+    ylim(ax, coord(2) + [-r r]);
+    zlim(ax, coord(3) + [-r r]);
+    view(ax, [0 90]);
+    title(ax, 'Axial', 'Color', 'k', 'FontSize', 8);
+    
+    % 3D Zoom
+    ax = appData.axesZoom;
+    copyobj(appData.axes.Children, ax);
+    axis(ax, 'equal'); axis(ax, 'off');
+    xlim(ax, coord(1) + [-r r]);
+    ylim(ax, coord(2) + [-r r]);
+    zlim(ax, coord(3) + [-r r]);
+    view(ax, 3);
+    camlight(ax, 'headlight'); lighting(ax, 'flat');
+    title(ax, '3D Zoom', 'Color', 'k', 'FontSize', 8);
 end
 
 function displayPointInfo(fig, rowIdx)
@@ -1440,4 +1666,219 @@ function updateAtlasOverlay(fig)
             end
         end
     end
+end
+
+function toggleVectors(fig, show)
+    appData = guidata(fig);
+    if ~isfield(appData.scatterAll.UserData, 'vectorShafts')
+        return;
+    end
+    vectorShafts = appData.scatterAll.UserData.vectorShafts;
+    
+    if show
+        appData.scatterAll.Visible = 'off';
+        vectorShafts.Visible = 'on';
+        updateVectors(fig);
+    else
+        appData.scatterAll.Visible = 'on';
+        vectorShafts.Visible = 'off';
+    end
+end
+
+function updateVectors(fig)
+    appData = guidata(fig);
+    vectorShafts = appData.scatterAll.UserData.vectorShafts;
+    if strcmp(vectorShafts.Visible, 'off')
+            return;
+    end
+    
+    % Get vector settings
+    thickVal = str2double(appData.vecThickEdit.String);
+    if isnan(thickVal) || thickVal <= 0, thickVal = 2.0; end
+    
+    scaleVal = str2double(appData.vecScaleEdit.String);
+    if isnan(scaleVal) || scaleVal <= 0, scaleVal = 1.5; end
+    
+    set(vectorShafts, 'LineWidth', thickVal);
+    
+    % Get current data
+    coords = appData.branchList(:, 1:3);
+    tangents = appData.tangents;
+    
+    % Scale by current parameter (e.g. flow or velocity)
+    if appData.isAnimating
+        frame = appData.currentFrame;
+        % User requested: "animated the flow itself ... absolute value have sense for this"
+        % Stick to Flow Pulsatile but scale by Magnitude
+        flowVals = appData.flowPulsatile(:, frame);
+        globalRange = appData.globalFlowRange;
+    else
+        flowVals = appData.paramData;
+        globalRange = [min(flowVals(:)), max(flowVals(:))];
+    end
+    
+    % Handle NaN
+    flowVals(isnan(flowVals)) = 0;
+    
+    % Use global max flow if available for consistent scaling (using Absolute Max)
+    
+    if ~isempty(globalRange)
+        maxVal = max(abs(globalRange));
+    else
+        maxVal = max(abs(flowVals(:)));
+    end
+    if maxVal == 0, maxVal = 1; end
+    
+    % Length of vector in data units (approx voxel units?)
+    % Use SIGNED value for length scaling to preserve direction/sense
+    % If flow is negative (backward relative to centerline), vector should point backwards.
+    % We previously used ABS which forced all arrows forward.
+    % Reverting to SIGNED calculation for 'lenFactors'.
+    % lenFactors = (abs(flowVals) / maxVal) * 5 * scaleVal; % OLD (Magnitude only)
+    
+    % We calculate signed factor, then apply to tangent.
+    % This makes the vector point in the direction of flow.
+    % lenFactors = (flowVals / maxVal) * 5 * scaleVal;
+    
+    % Calculate end points (tips)
+    % Tangents point along centerline.
+    % Flow value sign indicates direction relative to centerline tangent.
+    % If flow > 0, vector = tangent * len.
+    % If flow < 0, vector = tangent * (-len) = -tangent * |len|.
+    % So multiplying tangent by SIGNED flow automatically handles forward/backward sense.
+    
+    % Use SIGNED flow for length factor direction
+    % lenFactors magnitude is length, sign is direction
+    lenFactors = (-flowVals / maxVal) * 5 * scaleVal; 
+    
+    % Calculate end points (tips)
+    Tips = coords + tangents .* lenFactors;
+    
+    % --- Arrow Head Construction ---
+    % Compute basis vectors U, V perpendicular to Tangents
+    Ref = repmat([0 0 1], size(tangents,1), 1);
+    isPar = abs(dot(tangents, Ref, 2)) > 0.99;
+    Ref(isPar, :) = repmat([0 1 0], sum(isPar), 1);
+    
+    U = cross(tangents, Ref);
+    % Normalize U
+    uLen = sqrt(sum(U.^2, 2));
+    U = U ./ (uLen + eps);
+    
+    V = cross(tangents, U);
+    % Normalize V (should be already, but safe to ensure)
+    vLen = sqrt(sum(V.^2, 2));
+    V = V ./ (vLen + eps);
+    
+    % Arrow Head Dimensions
+    headLen = lenFactors * 0.25;
+    headWid = lenFactors * 0.1;
+    
+    % Base points of arrow head (Tripod shape)
+    % 3 lines from Tip back to base points
+    B1 = Tips - tangents.*headLen + U.*headWid;
+    B2 = Tips - tangents.*headLen - U.*0.5.*headWid + V.*0.866.*headWid;
+    B3 = Tips - tangents.*headLen - U.*0.5.*headWid - V.*0.866.*headWid;
+    
+    % Construct Patch Data (Shafts + Heads)
+    n = size(coords, 1);
+    nanSep = repmat(NaN, 1, n);
+    
+    % X coordinates
+    X = [coords(:,1)'; Tips(:,1)'; nanSep; ...          % Shaft
+         Tips(:,1)';   B1(:,1)';   nanSep; ...          % Head 1
+         Tips(:,1)';   B2(:,1)';   nanSep; ...          % Head 2
+         Tips(:,1)';   B3(:,1)';   nanSep];             % Head 3
+    X = X(:);
+    
+    % Y coordinates
+    Y = [coords(:,2)'; Tips(:,2)'; nanSep; ...
+         Tips(:,2)';   B1(:,2)';   nanSep; ...
+         Tips(:,2)';   B2(:,2)';   nanSep; ...
+         Tips(:,2)';   B3(:,2)';   nanSep];
+    Y = Y(:);
+    
+    % Z coordinates
+    Z = [coords(:,3)'; Tips(:,3)'; nanSep; ...
+         Tips(:,3)';   B1(:,3)';   nanSep; ...
+         Tips(:,3)';   B2(:,3)';   nanSep; ...
+         Tips(:,3)';   B3(:,3)';   nanSep];
+    Z = Z(:);
+    
+    % Colors (match vertices)
+    % Use ABSOLUTE value for coloring if animating (Magnitude)
+    if appData.isAnimating
+        colorData = abs(flowVals);
+    else
+        colorData = flowVals;
+    end
+    
+    C_seg = [colorData'; colorData'; nanSep]; % 3 x n
+    C = repmat(C_seg, 4, 1); % 12 x n
+    C = C(:);
+    
+    set(vectorShafts, 'XData', X, 'YData', Y, 'ZData', Z, 'CData', C);
+end
+
+function toggleAnimation(fig, btn)
+    appData = guidata(fig);
+    if appData.isAnimating
+        % Stop
+        appData.isAnimating = false;
+        btn.String = 'Play';
+        if ~isempty(appData.timer)
+            stop(appData.timer);
+            delete(appData.timer);
+            appData.timer = [];
+        end
+    else
+        % Start
+        appData.isAnimating = true;
+        btn.String = 'Stop';
+        appData.timer = timer('ExecutionMode', 'fixedRate', 'Period', 0.1, ...
+                              'TimerFcn', @(~,~) updateAnimationLoop(fig));
+        start(appData.timer);
+    end
+    guidata(fig, appData);
+end
+
+function updateAnimationLoop(fig)
+    if ~isgraphics(fig)
+        return;
+    end
+    appData = guidata(fig);
+    frame = appData.currentFrame + 1;
+    if frame > appData.nframes
+        frame = 1;
+    end
+    updateTimeFrame(fig, frame);
+end
+
+function updateTimeFrame(fig, frame)
+    appData = guidata(fig);
+    appData.currentFrame = frame;
+    if isgraphics(appData.timeSlider)
+        appData.timeSlider.Value = frame;
+    end
+    
+    % Update Color Data (Scatter) - Use ABSOLUTE Value for Color intensity (Speed/Magnitude)
+    % User requested: "use the colors to represent the flow ... animated the flow itself ... absolute value have sense for this"
+    
+    rawData = appData.flowPulsatile(:, frame);
+    newData = abs(rawData);
+    
+    set(appData.scatterAll, 'CData', newData);
+    
+    % Update Colorbar Limits using GLOBAL range (Calculated as Abs Range in init)
+    if isfield(appData, 'globalFlowRange')
+        caxis(appData.axes, appData.globalFlowRange);
+        % Update edit boxes
+        appData.cbMinEdit.String = sprintf('%.3f', appData.globalFlowRange(1));
+        appData.cbMaxEdit.String = sprintf('%.3f', appData.globalFlowRange(2));
+    end
+    
+    % Update Vectors if visible
+    updateVectors(fig);
+    
+    guidata(fig, appData);
 end
