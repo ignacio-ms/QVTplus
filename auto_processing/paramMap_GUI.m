@@ -64,14 +64,15 @@ function paramMap_GUI()
 
     app.figure = figure('Name', 'QVT+ Viewer', ...
                         'NumberTitle', 'off', ...
-                        'Color', [0 0 0], ...
+                        'Color', [1.0 1.0 1.0], ...
                         'Units', 'normalized', ...
                         'Position', [0.08 0.08 0.84 0.82]);
     movegui(app.figure, 'center');
 
+    % Render window on the left
     app.axes = axes('Parent', app.figure, ...
-                    'Position', [0.05 0.32 0.6 0.63], ...
-                    'Color', 'k');
+                    'Position', [0.02 0.02 0.58 0.96], ...
+                    'Color', [1.0 1.0 1.0]);
     hold(app.axes, 'on');
     axis(app.axes, 'equal');
     axis(app.axes, 'off');
@@ -91,37 +92,22 @@ function paramMap_GUI()
         multiQVTvol = [];
     end
 
-    % Load auxiliary TOF overlays if present
-    tofPath = fullfile(outputDir, 'r_TOF_resampled.nii');
-    tofVolume = [];
-    tofMat = [];
-    tofThresh = [];
-    if exist(tofPath, 'file')
-        try
-            tofHeader = spm_vol(tofPath);
-            tofVolume = spm_read_vols(tofHeader);
-            tofMat = tofHeader.mat;
-            voxValues = tofVolume(isfinite(tofVolume));
-            if ~isempty(voxValues)
-                pLow = prctile(voxValues, 70);
-                pHigh = prctile(voxValues, 99.5);
-                if pLow == pHigh
-                    pLow = min(voxValues);
-                    pHigh = max(voxValues);
-                end
-                tofThresh = [pLow, pHigh];
-            end
-        catch ME
-            warning('paramMap_GUI:LoadTOF','Failed to load r_TOF_resampled.nii: %s', ME.message);
-            tofVolume = [];
-        end
-    end
-
-    atlasPath = fullfile(outputDir, 'r_TOF_eICAB_CW.nii');
+    % Prefer whole-brain atlas; fallback to CW if WB not available
     atlasVolume = [];
-    if exist(atlasPath, 'file')
+    atlasPathWB = fullfile(outputDir, 'r_TOF_eICAB_WB.nii');
+    atlasPathCW = fullfile(outputDir, 'r_TOF_eICAB_CW.nii');
+
+    if exist(atlasPathWB, 'file')
         try
-            atlasHeader = spm_vol(atlasPath);
+            atlasHeader = spm_vol(atlasPathWB);
+            atlasVolume = spm_read_vols(atlasHeader);
+        catch ME
+            warning('paramMap_GUI:LoadAtlas','Failed to load r_TOF_eICAB_WB.nii: %s', ME.message);
+            atlasVolume = [];
+        end
+    elseif exist(atlasPathCW, 'file')
+        try
+            atlasHeader = spm_vol(atlasPathCW);
             atlasVolume = spm_read_vols(atlasHeader);
         catch ME
             warning('paramMap_GUI:LoadAtlas','Failed to load r_TOF_eICAB_CW.nii: %s', ME.message);
@@ -170,102 +156,114 @@ function paramMap_GUI()
 
     colormap(app.axes, parula);
 
-    % Compact UI layout - Group 1: Vessel and Parameter selection
+    % Right Panel Controls
+    % Group 1: Vessel and Parameter selection (Top)
     uicontrol('Style', 'text', ...
               'Parent', app.figure, ...
               'Units', 'normalized', ...
-              'Position', [0.66 0.94 0.15 0.022], ...
+              'Position', [0.66 0.95 0.15 0.022], ...
               'String', 'Vessel', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
               'FontSize', 8, ...
               'HorizontalAlignment', 'left');
     dropdownList = [{'All Vessels'}, vesselNames(:)'];
     dropdown = uicontrol('Style', 'popupmenu', ...
                          'Parent', app.figure, ...
                          'Units', 'normalized', ...
-                         'Position', [0.66 0.91 0.15 0.028], ...
+                         'Position', [0.66 0.92 0.15 0.028], ...
                          'String', dropdownList, ...
                          'BackgroundColor', [1 1 1], ...
+                         'ForegroundColor', [0 0 0], ...
                          'FontSize', 8);
 
     uicontrol('Style', 'text', ...
               'Parent', app.figure, ...
               'Units', 'normalized', ...
-              'Position', [0.82 0.94 0.14 0.022], ...
+              'Position', [0.82 0.95 0.14 0.022], ...
               'String', 'Parameter', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
               'FontSize', 8, ...
               'HorizontalAlignment', 'left');
     paramDropdown = uicontrol('Style', 'popupmenu', ...
                               'Parent', app.figure, ...
                               'Units', 'normalized', ...
-                              'Position', [0.82 0.91 0.14 0.028], ...
+                              'Position', [0.82 0.92 0.14 0.028], ...
                               'String', {paramOptions.label}, ...
                               'BackgroundColor', [1 1 1], ...
+                              'ForegroundColor', [0 0 0], ...
                               'FontSize', 8);
     paramDropdown.Value = 1;
 
-    % Group 2: Colormap and Colorbar limits (compact)
+    % Group 2: Colormap and Colorbar limits
     uicontrol('Style', 'text', ...
               'Parent', app.figure, ...
               'Units', 'normalized', ...
-              'Position', [0.66 0.87 0.08 0.022], ...
+              'Position', [0.66 0.89 0.08 0.022], ...
               'String', 'Colormap', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
               'FontSize', 8, ...
               'HorizontalAlignment', 'left');
     cmapDropdown = uicontrol('Style', 'popupmenu', ...
                              'Parent', app.figure, ...
                              'Units', 'normalized', ...
-                             'Position', [0.66 0.84 0.08 0.028], ...
+                             'Position', [0.66 0.86 0.08 0.028], ...
                              'String', cmapList, ...
                              'BackgroundColor', [1 1 1], ...
+                             'ForegroundColor', [0 0 0], ...
                              'FontSize', 8);
     cmapDropdown.Value = 1;
 
     uicontrol('Style', 'text', ...
               'Parent', app.figure, ...
               'Units', 'normalized', ...
-              'Position', [0.75 0.87 0.05 0.022], ...
+              'Position', [0.75 0.89 0.05 0.022], ...
               'String', 'Min', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
               'FontSize', 8, ...
               'HorizontalAlignment', 'left');
     cbMinEdit = uicontrol('Style', 'edit', ...
                           'Parent', app.figure, ...
                           'Units', 'normalized', ...
-                          'Position', [0.75 0.84 0.05 0.028], ...
+                          'Position', [0.75 0.86 0.05 0.028], ...
                           'BackgroundColor', [1 1 1], ...
+                          'ForegroundColor', [0 0 0], ...
                           'FontSize', 8);
 
     uicontrol('Style', 'text', ...
               'Parent', app.figure, ...
               'Units', 'normalized', ...
-              'Position', [0.81 0.87 0.05 0.022], ...
+              'Position', [0.81 0.89 0.05 0.022], ...
               'String', 'Max', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
               'FontSize', 8, ...
               'HorizontalAlignment', 'left');
     cbMaxEdit = uicontrol('Style', 'edit', ...
                           'Parent', app.figure, ...
                           'Units', 'normalized', ...
-                          'Position', [0.81 0.84 0.05 0.028], ...
+                          'Position', [0.81 0.86 0.05 0.028], ...
                           'BackgroundColor', [1 1 1], ...
+                          'ForegroundColor', [0 0 0], ...
                           'FontSize', 8);
 
-    % Group 3: Isosurface transparency control
+    % Group 3: Mask Transparency & Sync
     uicontrol('Style', 'text', ...
               'Parent', app.figure, ...
               'Units', 'normalized', ...
-              'Position', [0.87 0.87 0.09 0.022], ...
+              'Position', [0.66 0.83 0.09 0.022], ...
               'String', 'Mask Alpha', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
               'FontSize', 8, ...
               'HorizontalAlignment', 'left');
     alphaSlider = uicontrol('Style', 'slider', ...
                             'Parent', app.figure, ...
                             'Units', 'normalized', ...
-                            'Position', [0.87 0.84 0.09 0.028], ...
+                            'Position', [0.66 0.80 0.09 0.028], ...
                             'Min', 0, ...
                             'Max', 1, ...
                             'Value', 0.3, ...
@@ -274,152 +272,98 @@ function paramMap_GUI()
     syncCheckbox = uicontrol('Style', 'checkbox', ...
                              'Parent', app.figure, ...
                              'Units', 'normalized', ...
-                             'Position', [0.87 0.80 0.09 0.028], ...
+                             'Position', [0.77 0.80 0.10 0.028], ...
                              'String', 'Sync Masks', ...
                              'Value', 1, ...
-                             'ForegroundColor', [1 1 1], ...
-                             'BackgroundColor', [0 0 0], ...
+                             'ForegroundColor', [0 0 0], ...
+                             'BackgroundColor', [1 1 1], ...
                              'FontSize', 8, ...
                              'HorizontalAlignment', 'left');
 
-    % Group 4: Action buttons (compact)
-    focusButton = uicontrol('Style', 'pushbutton', ...
+    % Group 4: Atlas Overlay (Reorganized)
+    uicontrol('Style', 'text', ...
                             'Parent', app.figure, ...
                             'Units', 'normalized', ...
-                            'Position', [0.66 0.80 0.10 0.028], ...
-                            'String', 'Focus LOC', ...
-                            'FontSize', 8);
-
-    resetButton = uicontrol('Style', 'pushbutton', ...
-                            'Parent', app.figure, ...
-                            'Units', 'normalized', ...
-                            'Position', [0.77 0.80 0.10 0.028], ...
-                            'String', 'Reset', ...
-                            'FontSize', 8, ...
-                            'Callback', @(~,~) resetView(app.figure));
-
-    % Group 5: TOF / Atlas overlays
-    tofCheckbox = uicontrol('Style', 'checkbox', ...
-                            'Parent', app.figure, ...
-                            'Units', 'normalized', ...
-                            'Position', [0.66 0.76 0.12 0.026], ...
-                            'String', 'Show TOF overlay', ...
-                            'Value', 0, ...
-                            'ForegroundColor', [1 1 1], ...
-                            'BackgroundColor', [0 0 0], ...
-                            'FontSize', 8, ...
-                            'HorizontalAlignment', 'left');
-    uicontrol('Style', 'text', ...
-              'Parent', app.figure, ...
-              'Units', 'normalized', ...
-              'Position', [0.79 0.76 0.05 0.024], ...
-              'String', 'TOF Min', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
-              'FontSize', 8, ...
-              'HorizontalAlignment', 'left');
-    tofMinEdit = uicontrol('Style', 'edit', ...
-                           'Parent', app.figure, ...
-                           'Units', 'normalized', ...
-                           'Position', [0.79 0.734 0.05 0.028], ...
-                           'BackgroundColor', [1 1 1], ...
-                           'FontSize', 8);
-    uicontrol('Style', 'text', ...
-              'Parent', app.figure, ...
-              'Units', 'normalized', ...
-              'Position', [0.85 0.76 0.05 0.024], ...
-              'String', 'TOF Max', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
-              'FontSize', 8, ...
-              'HorizontalAlignment', 'left');
-    tofMaxEdit = uicontrol('Style', 'edit', ...
-                           'Parent', app.figure, ...
-                           'Units', 'normalized', ...
-                           'Position', [0.85 0.734 0.05 0.028], ...
-                           'BackgroundColor', [1 1 1], ...
-                           'FontSize', 8);
-
-    atlasCheckbox = uicontrol('Style', 'checkbox', ...
-                              'Parent', app.figure, ...
-                              'Units', 'normalized', ...
-                              'Position', [0.91 0.76 0.10 0.026], ...
-                              'String', 'Show Atlas', ...
-                              'Value', 0, ...
-                              'ForegroundColor', [1 1 1], ...
-                              'BackgroundColor', [0 0 0], ...
-                              'FontSize', 8, ...
-                              'HorizontalAlignment', 'left');
-
-    % TOF transparency control
-    uicontrol('Style', 'text', ...
-              'Parent', app.figure, ...
-              'Units', 'normalized', ...
-              'Position', [0.66 0.70 0.08 0.022], ...
-              'String', 'TOF Alpha', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
-              'FontSize', 8, ...
-              'HorizontalAlignment', 'left');
-    tofAlphaSlider = uicontrol('Style', 'slider', ...
-                               'Parent', app.figure, ...
-                               'Units', 'normalized', ...
-                               'Position', [0.66 0.67 0.08 0.028], ...
-                               'Min', 0, ...
-                               'Max', 1, ...
-                               'Value', 0.15, ...
-                               'SliderStep', [0.05 0.1]);
-
-    % Atlas transparency control
-    uicontrol('Style', 'text', ...
-              'Parent', app.figure, ...
-              'Units', 'normalized', ...
-              'Position', [0.75 0.70 0.08 0.022], ...
+              'Position', [0.66 0.77 0.09 0.022], ...
               'String', 'Atlas Alpha', ...
-              'BackgroundColor', [0.94 0.94 0.94], ...
+              'BackgroundColor', [1 1 1], ...
+              'ForegroundColor', [0 0 0], ...
               'FontSize', 8, ...
               'HorizontalAlignment', 'left');
     atlasAlphaSlider = uicontrol('Style', 'slider', ...
-                                 'Parent', app.figure, ...
-                                 'Units', 'normalized', ...
-                                 'Position', [0.75 0.67 0.08 0.028], ...
+                            'Parent', app.figure, ...
+                            'Units', 'normalized', ...
+                                 'Position', [0.66 0.74 0.09 0.028], ...
                                  'Min', 0, ...
                                  'Max', 1, ...
                                  'Value', 0.18, ...
                                  'SliderStep', [0.05 0.1]);
 
-    if ~isempty(tofThresh)
-        tofMinEdit.String = sprintf('%.2f', tofThresh(1));
-        tofMaxEdit.String = sprintf('%.2f', tofThresh(2));
-    else
-        set([tofCheckbox, tofMinEdit, tofMaxEdit, tofAlphaSlider], 'Enable', 'off');
-    end
-    if isempty(atlasVolume)
-        set([atlasCheckbox, atlasAlphaSlider], 'Enable', 'off');
-    end
+    atlasCheckbox = uicontrol('Style', 'checkbox', ...
+                              'Parent', app.figure, ...
+                              'Units', 'normalized', ...
+                              'Position', [0.77 0.74 0.10 0.028], ...
+                              'String', 'Show Atlas', ...
+                              'Value', 0, ...
+                              'ForegroundColor', [0 0 0], ...
+                              'BackgroundColor', [1 1 1], ...
+                              'FontSize', 8, ...
+                              'HorizontalAlignment', 'left');
+
+    % Group 5: Action Buttons
+    focusButton = uicontrol('Style', 'pushbutton', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
+                            'Position', [0.66 0.68 0.10 0.028], ...
+                            'String', 'Focus LOC', ...
+                            'FontSize', 8);
+
+    resetButton = uicontrol('Style', 'pushbutton', ...
+                                 'Parent', app.figure, ...
+                                 'Units', 'normalized', ...
+                            'Position', [0.77 0.68 0.10 0.028], ...
+                            'String', 'Reset', ...
+                            'FontSize', 8, ...
+                            'Callback', @(~,~) resetView(app.figure));
 
     infoBox = uicontrol('Style', 'text', ...
                         'Parent', app.figure, ...
                         'Units', 'normalized', ...
-                        'Position', [0.68 0.05 0.27 0.18], ...
+                        'Position', [0.65 0.02 0.34 0.24], ...
                         'String', '', ...
                         'HorizontalAlignment', 'left', ...
-                        'BackgroundColor', [0.2 0.2 0.2], ...
-                        'ForegroundColor', [1 1 1], ...
+                        'BackgroundColor', [1 1 1], ...
+                        'ForegroundColor', [0 0 0], ...
                         'FontSize', 10);
 
+    % Images displayed in a row (1x4)
     app.axesMAG = axes('Parent', app.figure, ...
-                       'Position', [0.66 0.50 0.14 0.15], ...
-                       'Color', 'k');
+                       'Position', [0.65 0.52 0.08 0.12], ...
+                       'Color', 'w', ...
+                       'HandleVisibility', 'callback', ...
+                       'HitTest', 'off');
     app.axesCD = axes('Parent', app.figure, ...
-                      'Position', [0.815 0.50 0.14 0.15], ...
-                      'Color', 'k');
+                      'Position', [0.735 0.52 0.08 0.12], ...
+                      'Color', 'w', ...
+                      'HandleVisibility', 'callback', ...
+                      'HitTest', 'off');
     app.axesVelTA = axes('Parent', app.figure, ...
-                         'Position', [0.66 0.31 0.14 0.15], ...
-                         'Color', 'k');
+                         'Position', [0.82 0.52 0.08 0.12], ...
+                         'Color', 'w', ...
+                         'HandleVisibility', 'callback', ...
+                         'HitTest', 'off');
     app.axesVelTR = axes('Parent', app.figure, ...
-                         'Position', [0.815 0.31 0.14 0.15], ...
-                         'Color', 'k');
+                         'Position', [0.905 0.52 0.08 0.12], ...
+                         'Color', 'w', ...
+                         'HandleVisibility', 'callback', ...
+                         'HitTest', 'off');
+
+    % Flow Chart below images
     app.axesWave = axes('Parent', app.figure, ...
-                        'Position', [0.05 0.05 0.6 0.2], ...
-                        'Color', [0.1 0.1 0.1]);
+                        'Position', [0.65 0.28 0.34 0.20], ...
+                        'Color', [1 1 1], ...
+                        'HandleVisibility', 'callback', ...
+                        'HitTest', 'off');
 
     setupCrossAxes(app.axesMAG, 'MAG');
     setupCrossAxes(app.axesCD, 'CD');
@@ -432,11 +376,11 @@ function paramMap_GUI()
     catch ME
         warning('paramMap_GUI:CamlightInit','camlight failed: %s', ME.message);
     end
-    lighting(app.axes, 'gouraud');
+    lighting(app.axes, 'flat'); % Flat lighting to reduce smoothing appearance
 
     cb = colorbar(app.axes);
-    cb.Color = [1 1 1];
-    cb.Label.Color = [1 1 1];
+    cb.Color = [0 0 0];
+    cb.Label.Color = [0 0 0];
 
     appData.branchList = data_struct.branchList;
     appData.area_val = data_struct.area_val;
@@ -469,10 +413,6 @@ function paramMap_GUI()
     appData.surfacePatches = surfacePatches;
     appData.alphaSlider = alphaSlider;
     appData.syncCheckbox = syncCheckbox;
-    appData.tofCheckbox = tofCheckbox;
-    appData.tofMinEdit = tofMinEdit;
-    appData.tofMaxEdit = tofMaxEdit;
-    appData.tofAlphaSlider = tofAlphaSlider;
     appData.atlasCheckbox = atlasCheckbox;
     appData.atlasAlphaSlider = atlasAlphaSlider;
     appData.colormapList = cmapList;
@@ -498,14 +438,6 @@ function paramMap_GUI()
     appData.imdim = sqrt(size(data_struct.segmentFull, 2));
     appData.data_struct = data_struct;
     appData.currentParamIndex = 1;
-    appData.tofVolume = tofVolume;
-    appData.tofMat = tofMat;
-    appData.tofThresholds = tofThresh;
-    % OLD CODE: tofPatch for isosurface rendering (commented out - replaced with volshow)
-    % appData.tofPatch = [];
-    appData.tofVolshow = []; % volshow viewer handle
-    appData.tofWindow = []; % TOF window handle
-    appData.showTOF = false;
     appData.atlasVolume = atlasVolume;
     appData.atlasPatches = [];
     appData.atlasLabels = [];
@@ -520,10 +452,6 @@ function paramMap_GUI()
     cbMaxEdit.Callback = @(src, ~) updateColorLimits(app.figure, 'max', str2double(src.String));
     alphaSlider.Callback = @(~, ~) applyMaskAlphasAndTOF(app.figure);
     syncCheckbox.Callback = @(~, ~) applyMaskAlphas(app.figure);
-    tofCheckbox.Callback = @(src, ~) toggleTOFOverlay(app.figure, logical(src.Value));
-    tofMinEdit.Callback = @(src, ~) updateTOFThreshold(app.figure, 'min', str2double(src.String));
-    tofMaxEdit.Callback = @(src, ~) updateTOFThreshold(app.figure, 'max', str2double(src.String));
-    tofAlphaSlider.Callback = @(src, ~) updateTOFOverlay(app.figure);
     atlasCheckbox.Callback = @(src, ~) toggleAtlasOverlay(app.figure, logical(src.Value));
     atlasAlphaSlider.Callback = @(src, ~) updateAtlasOverlay(app.figure);
     focusButton.Callback = @(~,~) focusOnSelectedLOC(app.figure);
@@ -535,7 +463,6 @@ function paramMap_GUI()
     applyParameterSelection(app.figure, 1, true);
     updateSelection(app.figure, 1, vesselNames, locKeys);
     applyMaskAlphas(app.figure);
-    updateTOFOverlay(app.figure);
     updateAtlasOverlay(app.figure);
     
     % Ensure scatter plots are on top for click detection
@@ -603,6 +530,9 @@ end
 
 function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_struct, correspondenceDict, multiQVTvol)
     % Generate colored isosurfaces for each vessel
+    % Note: isosurface() creates a mesh from the voxel data. The visual smoothness
+    % is determined by the voxel resolution and the lighting method.
+    % We use 'flat' lighting in the main function to show the faceted structure.
     surfacePatches = struct('handle', {}, 'label', {}, 'vessel', {});
 
     % Define distinct colors for each vessel type
@@ -820,14 +750,14 @@ function setupCrossAxes(ax, titleText)
     axis(ax, 'image');
     axis(ax, 'off');
     colormap(ax, gray);
-    title(ax, titleText, 'Color', 'w', 'FontSize', 10);
+    title(ax, titleText, 'Color', 'k', 'FontSize', 10);
 end
 
 function prepareWaveformAxes(ax)
     hold(ax, 'on');
-    ax.XColor = [1 1 1];
-    ax.YColor = [1 1 1];
-    ax.Color = [0.1 0.1 0.1];
+    ax.XColor = [0 0 0];
+    ax.YColor = [0 0 0];
+    ax.Color = [1 1 1];
 end
 
 function applyParameterSelection(fig, idx, resetLimits)
@@ -1055,7 +985,7 @@ function resetView(fig)
     catch ME
         warning('paramMap_GUI:CamlightReset','camlight failed during reset: %s', ME.message);
     end
-    lighting(ax, 'gouraud');
+    lighting(ax, 'flat');
     applyParameterSelection(fig, appData.currentParamIndex, false);
     guidata(fig, appData);
 end
@@ -1175,7 +1105,7 @@ function showCrossSection(ax, imageData, mask, cmapName, titleText)
     hold(ax, 'on');
     contour(ax, mask, [0.5 0.5], 'LineWidth', 0.8, 'LineColor', 'w');
     hold(ax, 'off');
-    title(ax, titleText, 'Color', 'w', 'FontSize', 10);
+    title(ax, titleText, 'Color', 'k', 'FontSize', 10);
 end
 
 function updateWaveform(fig, rowIdx)
@@ -1216,13 +1146,13 @@ function updateWaveform(fig, rowIdx)
     end
     plot(ax, frames, baseline, 'Color', [0.1 0.7 1], 'LineWidth', 2.2);
     grid(ax, 'on');
-    ax.GridColor = [0.5 0.5 0.5];
-    ax.GridAlpha = 0.3;
+    ax.GridColor = [0.8 0.8 0.8];
+    ax.GridAlpha = 0.5;
     xlim(ax, [0 appData.nframes-1]);
     xticks(ax, frames);
-    xlabel(ax, 'Cardiac Frame', 'Color', 'w');
-    ylabel(ax, 'Flow (mL/s)', 'Color', 'w');
-    title(ax, 'Time-Resolved Flow', 'Color', 'w');
+    xlabel(ax, 'Cardiac Frame', 'Color', 'k');
+    ylabel(ax, 'Flow (mL/s)', 'Color', 'k');
+    title(ax, 'Time-Resolved Flow', 'Color', 'k');
 end
 
 function updatePlaneOverlay(fig, rowIdx)
@@ -1294,14 +1224,6 @@ function updatePlaneOverlay(fig, rowIdx)
             'VData', normalVec(2), ...
             'WData', normalVec(3), ...
             'Visible', 'on');
-        % if isfield(appData, 'planeNormalTip') && isgraphics(appData.planeNormalTip)
-        %     tipPoint = centerPt + normalVec;
-        % set(appData.planeNormalTip, ...
-        %     'XData', tipPoint(1), ...
-        %     'YData', tipPoint(2), ...
-        %     'ZData', tipPoint(3), ...
-        %     'Visible', 'on');
-        % end
     end
 end
 
@@ -1369,122 +1291,59 @@ function applyMaskAlphas(fig)
     end
 end
 
-function toggleTOFOverlay(fig, enabled)
-    appData = guidata(fig);
-    if ~isfield(appData, 'tofVolume') || isempty(appData.tofVolume)
-        return;
+function idx = nearestBranchIndex(appData, pos)
+    coords = appData.branchList(:,1:3);
+    dists = sum((coords - pos).^2, 2);
+    [minDist, idx] = min(dists);
+    if ~isfinite(minDist)
+        idx = [];
     end
-    appData.showTOF = enabled;
-    guidata(fig, appData);
-    updateTOFOverlay(fig);
 end
 
-function updateTOFThreshold(fig, whichLimit, value)
-    appData = guidata(fig);
-    if ~isfield(appData, 'tofVolume') || isempty(appData.tofVolume) || ~isfinite(value)
-        return;
-    end
-    if isempty(appData.tofThresholds) || numel(appData.tofThresholds) ~= 2
-        finiteVals = appData.tofVolume(isfinite(appData.tofVolume));
-        if isempty(finiteVals)
-            return;
-        end
-        appData.tofThresholds = [min(finiteVals), max(finiteVals)];
-    end
-    switch whichLimit
-        case 'min'
-            appData.tofThresholds(1) = min(value, appData.tofThresholds(2) - eps);
-        case 'max'
-            appData.tofThresholds(2) = max(value, appData.tofThresholds(1) + eps);
-    end
-    if isfield(appData, 'tofMinEdit') && isgraphics(appData.tofMinEdit)
-        appData.tofMinEdit.String = sprintf('%.2f', appData.tofThresholds(1));
-    end
-    if isfield(appData, 'tofMaxEdit') && isgraphics(appData.tofMaxEdit)
-        appData.tofMaxEdit.String = sprintf('%.2f', appData.tofThresholds(2));
-    end
-    guidata(fig, appData);
-    updateTOFOverlay(fig);
+function applyMaskAlphasAndTOF(fig)
+    applyMaskAlphas(fig);
 end
 
-function updateTOFOverlay(fig)
+function syncSelectionToVessel(fig, rowIdx)
     appData = guidata(fig);
-    if ~isfield(appData, 'tofVolume') || isempty(appData.tofVolume)
+    if rowIdx < 1 || rowIdx > size(appData.branchList,1)
         return;
     end
-    enabled = isfield(appData, 'showTOF') && appData.showTOF;
-    if ~enabled
-        % Close TOF window if it exists
-        if isfield(appData, 'tofWindow') && ~isempty(appData.tofWindow) && isgraphics(appData.tofWindow)
-            try
-                close(appData.tofWindow);
-            catch
-            end
-            appData.tofWindow = [];
-            appData.tofVolshow = [];
-        end
+    segID = appData.branchList(rowIdx,4);
+    vesselKey = findVesselKey(appData.correspondenceDict, segID);
+    if isempty(vesselKey)
+        return;
+    end
+    locIdx = find(strcmp(appData.locKeys, vesselKey), 1);
+    if isempty(locIdx)
+        return;
+    end
+    newValue = locIdx + 1; % account for "All Vessels"
+    vesselNames = appData.vesselNames;
+    locKeys = appData.locKeys;
+    if appData.dropdown.Value ~= newValue
+        appData.dropdown.Value = newValue;
         guidata(fig, appData);
-        return;
+        updateSelection(fig, newValue, vesselNames, locKeys);
+    else
+        updateSelection(fig, newValue, vesselNames, locKeys);
     end
-    if isempty(appData.tofThresholds)
-        finiteVals = appData.tofVolume(isfinite(appData.tofVolume));
-        if isempty(finiteVals)
+end
+
+function vesselKey = findVesselKey(correspondenceDict, segID)
+    vesselKey = '';
+    dictFields = fieldnames(correspondenceDict);
+    for i = 1:numel(dictFields)
+        key = dictFields{i};
+        segments = correspondenceDict.(key);
+        if isempty(segments)
+            continue;
+        end
+        if any(segments == segID)
+            vesselKey = key;
             return;
         end
-        % Set default thresholds to min and max of volume intensity
-        appData.tofThresholds = [min(finiteVals), max(finiteVals)];
-        if isfield(appData, 'tofMinEdit') && isgraphics(appData.tofMinEdit)
-            appData.tofMinEdit.String = sprintf('%.2f', appData.tofThresholds(1));
-        end
-        if isfield(appData, 'tofMaxEdit') && isgraphics(appData.tofMaxEdit)
-            appData.tofMaxEdit.String = sprintf('%.2f', appData.tofThresholds(2));
-        end
-        guidata(fig, appData);
-        appData = guidata(fig); % refresh local copy
     end
-    % Prepare volume data with thresholding for volshow
-    % Note: volshow expects data in original orientation (no permutation needed)
-    tofVol = appData.tofVolume;
-    thresh = appData.tofThresholds;
-    
-    % Apply thresholding: values outside range are set to 0 (transparent in volshow)
-    % Values within range are kept for volume rendering
-    tofVolMasked = tofVol;
-    tofVolMasked(tofVol < thresh(1) | tofVol > thresh(2)) = 0;
-    
-    % Always update the volume, even if thresholded out
-    % This ensures the volume comes back when thresholds are adjusted
-    
-    % Get transparency values
-    tofAlpha = 0.15; % default
-    if isfield(appData, 'tofAlphaSlider') && isgraphics(appData.tofAlphaSlider)
-        tofAlpha = appData.tofAlphaSlider.Value;
-    end
-    
-    % Get mask alpha (for overlaying masks in TOF window)
-    maskAlpha = 0.3; % default
-    if isfield(appData, 'alphaSlider') && isgraphics(appData.alphaSlider)
-        maskAlpha = appData.alphaSlider.Value;
-    end
-    
-    % Use volshow() in a separate window with interactive controls
-    try
-        % Check if TOF window already exists
-        if ~isfield(appData, 'tofWindow') || isempty(appData.tofWindow) || ...
-           ~isgraphics(appData.tofWindow)
-            % Create new TOF window with volshow and controls
-            appData = createTOFWindow(fig, appData, tofVolMasked, tofAlpha, maskAlpha);
-        else
-            % Update existing TOF window
-            appData = updateTOFWindow(fig, appData, tofVolMasked, tofAlpha, maskAlpha);
-        end
-    catch ME
-        warning('paramMap_GUI:TOFVolshowFailed', ...
-                'Failed to create/update TOF volume viewer: %s. Make sure volshow is available (Image Processing Toolbox).', ME.message);
-        return;
-    end
-    
-    guidata(fig, appData);
 end
 
 function toggleAtlasOverlay(fig, enabled)
@@ -1546,6 +1405,8 @@ function updateAtlasOverlay(fig)
                 continue;
             end
             try
+                % Smooth to bridge gaps in small vessels
+                % maskSmooth = smooth3(double(mask), 'box', 3);
                 fv = isosurface(mask, 0.5);
             catch
                 continue;
@@ -1580,722 +1441,3 @@ function updateAtlasOverlay(fig)
         end
     end
 end
-
-function syncSelectionToVessel(fig, rowIdx)
-    appData = guidata(fig);
-    if rowIdx < 1 || rowIdx > size(appData.branchList,1)
-        return;
-    end
-    segID = appData.branchList(rowIdx,4);
-    vesselKey = findVesselKey(appData.correspondenceDict, segID);
-    if isempty(vesselKey)
-        return;
-    end
-    locIdx = find(strcmp(appData.locKeys, vesselKey), 1);
-    if isempty(locIdx)
-        return;
-    end
-    newValue = locIdx + 1; % account for "All Vessels"
-    vesselNames = appData.vesselNames;
-    locKeys = appData.locKeys;
-    if appData.dropdown.Value ~= newValue
-        appData.dropdown.Value = newValue;
-        guidata(fig, appData);
-        updateSelection(fig, newValue, vesselNames, locKeys);
-    else
-        updateSelection(fig, newValue, vesselNames, locKeys);
-    end
-end
-
-function vesselKey = findVesselKey(correspondenceDict, segID)
-    vesselKey = '';
-    dictFields = fieldnames(correspondenceDict);
-    for i = 1:numel(dictFields)
-        key = dictFields{i};
-        segments = correspondenceDict.(key);
-        if isempty(segments)
-            continue;
-        end
-        if any(segments == segID)
-            vesselKey = key;
-            return;
-        end
-    end
-end
-
-function idx = nearestBranchIndex(appData, pos)
-    coords = appData.branchList(:,1:3);
-    dists = sum((coords - pos).^2, 2);
-    [minDist, idx] = min(dists);
-    if ~isfinite(minDist)
-        idx = [];
-    end
-end
-
-% Function to apply mask alphas to both main window and TOF window
-function applyMaskAlphasAndTOF(fig)
-    % Apply mask alphas to main window
-    applyMaskAlphas(fig);
-    
-    % Update TOF window if it exists
-    appData = guidata(fig);
-    if isfield(appData, 'tofWindow') && ~isempty(appData.tofWindow) && isgraphics(appData.tofWindow)
-        updateTOFOverlay(fig);
-    end
-end
-
-% Function to create TOF window with volshow and interactive controls
-function appData = createTOFWindow(mainFig, appData, tofVolMasked, tofAlpha, maskAlpha)
-    % Create a custom figure with proper layout before volshow
-    screenSize = get(0, 'ScreenSize');
-    winWidth = round(screenSize(3) * 0.85);
-    winHeight = round(screenSize(4) * 0.85);
-    winX = round((screenSize(3) - winWidth) / 2);
-    winY = round((screenSize(4) - winHeight) / 2);
-    
-    % Create uifigure (required for volshow 3D rendering)
-    tofFig = uifigure('Name', 'TOF Volume Viewer', ...
-        'Position', [winX winY winWidth winHeight], ...
-        'CloseRequestFcn', @(src,~) closeTOFWindow(mainFig, src), ...
-        'Color', [0.94 0.94 0.94]);
-    
-    % Create main panel for volshow (left side)
-    volshowPanel = uipanel('Parent', tofFig, ...
-        'Units', 'normalized', ...
-        'Position', [0.01 0.01 0.76 0.98], ...
-        'BackgroundColor', [0 0 0], ...
-        'BorderType', 'none');
-    
-    % Create control panel (right side)
-    controlPanel = uipanel('Parent', tofFig, ...
-        'Title', 'TOF Controls', ...
-        'Units', 'normalized', ...
-        'Position', [0.78 0.01 0.21 0.98], ...
-        'BackgroundColor', [0.94 0.94 0.94], ...
-        'FontSize', 9);
-    
-    % Create volshow in the left panel
-    try
-        volshowObj = volshow(tofVolMasked, ...
-            'Parent', volshowPanel, ...
-            'Alphamap', linspace(0, tofAlpha, 256), ...
-            'Colormap', repmat([1 0.9 0.6], 256, 1), ...
-            'RenderingStyle', 'VolumeRendering');
-        
-        % Get volshow's axes
-        volshowAxes = ancestor(volshowObj.Parent, 'axes');
-        if isempty(volshowAxes)
-            volshowAxes = volshowObj.Parent;
-        end
-        
-        % Store volshow axes reference for overlay
-        appData.tofVolshowAxes = volshowAxes;
-        
-        % Get volume intensity range for sliders
-        finiteVals = appData.tofVolume(isfinite(appData.tofVolume));
-        volMin = min(finiteVals);
-        volMax = max(finiteVals);
-        currentMin = appData.tofThresholds(1);
-        currentMax = appData.tofThresholds(2);
-        
-        % TOF Min threshold control
-        uicontrol('Style', 'text', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.90 0.90 0.05], ...
-            'String', 'TOF Min Threshold', ...
-            'BackgroundColor', [0.94 0.94 0.94], ...
-            'FontSize', 9, ...
-            'HorizontalAlignment', 'left');
-        tofMinSlider = uicontrol('Style', 'slider', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.85 0.90 0.04], ...
-            'Min', volMin, ...
-            'Max', volMax, ...
-            'Value', currentMin, ...
-            'SliderStep', [0.01 0.1], ...
-            'Callback', @(src,~) updateTOFThresholdFromSlider(mainFig, 'min', src.Value));
-        tofMinEdit = uicontrol('Style', 'edit', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.80 0.90 0.04], ...
-            'String', sprintf('%.2f', currentMin), ...
-            'BackgroundColor', [1 1 1], ...
-            'FontSize', 9, ...
-            'Callback', @(src,~) updateTOFThresholdFromEdit(mainFig, 'min', str2double(src.String)));
-        
-        % TOF Max threshold control
-        uicontrol('Style', 'text', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.75 0.90 0.05], ...
-            'String', 'TOF Max Threshold', ...
-            'BackgroundColor', [0.94 0.94 0.94], ...
-            'FontSize', 9, ...
-            'HorizontalAlignment', 'left');
-        tofMaxSlider = uicontrol('Style', 'slider', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.70 0.90 0.04], ...
-            'Min', volMin, ...
-            'Max', volMax, ...
-            'Value', currentMax, ...
-            'SliderStep', [0.01 0.1], ...
-            'Callback', @(src,~) updateTOFThresholdFromSlider(mainFig, 'max', src.Value));
-        tofMaxEdit = uicontrol('Style', 'edit', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.65 0.90 0.04], ...
-            'String', sprintf('%.2f', currentMax), ...
-            'BackgroundColor', [1 1 1], ...
-            'FontSize', 9, ...
-            'Callback', @(src,~) updateTOFThresholdFromEdit(mainFig, 'max', str2double(src.String)));
-        
-        % TOF Alpha control
-        uicontrol('Style', 'text', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.60 0.90 0.05], ...
-            'String', 'TOF Alpha', ...
-            'BackgroundColor', [0.94 0.94 0.94], ...
-            'FontSize', 9, ...
-            'HorizontalAlignment', 'left');
-        tofAlphaSliderTOF = uicontrol('Style', 'slider', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.55 0.90 0.04], ...
-            'Min', 0, ...
-            'Max', 1, ...
-            'Value', tofAlpha, ...
-            'SliderStep', [0.05 0.1], ...
-            'Callback', @(src,~) updateTOFAlphaFromTOFWindow(mainFig, src.Value));
-        
-        % Mask Alpha control
-        uicontrol('Style', 'text', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.50 0.90 0.05], ...
-            'String', 'Mask Alpha', ...
-            'BackgroundColor', [0.94 0.94 0.94], ...
-            'FontSize', 9, ...
-            'HorizontalAlignment', 'left');
-        maskAlphaSliderTOF = uicontrol('Style', 'slider', ...
-            'Parent', controlPanel, ...
-            'Units', 'normalized', ...
-            'Position', [0.05 0.45 0.90 0.04], ...
-            'Min', 0, ...
-            'Max', 1, ...
-            'Value', maskAlpha, ...
-            'SliderStep', [0.05 0.1], ...
-            'Callback', @(src,~) updateMaskAlphaFromTOFWindow(mainFig, src.Value));
-        
-        % Store handles in appData
-        appData.tofWindow = tofFig;
-        appData.tofVolshow = volshowObj;
-        appData.tofMinSlider = tofMinSlider;
-        appData.tofMaxSlider = tofMaxSlider;
-        appData.tofMinEditTOF = tofMinEdit;
-        appData.tofMaxEditTOF = tofMaxEdit;
-        appData.tofAlphaSliderTOF = tofAlphaSliderTOF;
-        appData.maskAlphaSliderTOF = maskAlphaSliderTOF;
-        appData.tofMaskPatches = []; % Store mask overlay patches
-        
-        % Add mask overlays to TOF window
-        appData = addMaskOverlaysToTOF(mainFig, appData, maskAlpha);
-        
-    catch ME
-        if exist('tofFig', 'var') && isgraphics(tofFig)
-            close(tofFig);
-        end
-        rethrow(ME);
-    end
-end
-
-% Function to add vessel mask overlays to TOF window
-function appData = addMaskOverlaysToTOF(mainFig, appData, maskAlpha)
-    % Get the segmentation volume
-    if ~isfield(appData, 'data_struct') || ~isfield(appData.data_struct, 'segment')
-        return;
-    end
-    
-    segVol = appData.data_struct.segment;
-    if isempty(segVol)
-        return;
-    end
-    
-    try
-        % Get the volshow panel (parent of volshow axes)
-        volshowPanel = [];
-        if isfield(appData, 'tofVolshowAxes') && ~isempty(appData.tofVolshowAxes) && isgraphics(appData.tofVolshowAxes)
-            volshowPanel = ancestor(appData.tofVolshowAxes, 'uipanel');
-            if isempty(volshowPanel)
-                volshowPanel = appData.tofWindow;
-            end
-        else
-            volshowPanel = appData.tofWindow;
-        end
-        
-        % Get volshow axes position
-        volshowAxesPos = [0 0 1 1]; % Full panel by default
-        if isfield(appData, 'tofVolshowAxes') && ~isempty(appData.tofVolshowAxes) && isgraphics(appData.tofVolshowAxes)
-            if isprop(appData.tofVolshowAxes, 'Position')
-                volshowAxesPos = appData.tofVolshowAxes.Position;
-            end
-        end
-        
-        % Create a separate overlay axes in the volshow panel
-        % For uifigure, we need to use uiaxes (uses pixel positions)
-        % Get panel size in pixels
-        panelPos = volshowPanel.Position; % Already in pixels for uifigure
-        if numel(volshowAxesPos) == 4 && all(volshowAxesPos >= 0) && all(volshowAxesPos <= 1)
-            % Normalized position - convert to pixels
-            axesPos = [volshowAxesPos(1)*panelPos(3), ...
-                       volshowAxesPos(2)*panelPos(4), ...
-                       volshowAxesPos(3)*panelPos(3), ...
-                       volshowAxesPos(4)*panelPos(4)];
-        else
-            % Already in pixels or use full panel
-            axesPos = [0, 0, panelPos(3), panelPos(4)];
-        end
-        
-        overlayAxes = uiaxes('Parent', volshowPanel, ...
-            'Position', round(axesPos), ...
-            'BackgroundColor', 'none', ...
-            'Visible', 'on', ...
-            'XTick', [], ...
-            'YTick', [], ...
-            'ZTick', [], ...
-            'XColor', 'none', ...
-            'YColor', 'none', ...
-            'ZColor', 'none');
-        
-        % Make axes interactive - enable rotation and zoom
-        rotate3d(overlayAxes, 'on');
-        
-        % Bring overlay axes to front so patches are visible
-        uistack(overlayAxes, 'top');
-        
-        % Permute segmentation to match coordinate system (same as main window)
-        segVolPerm = permute(segVol, [2 1 3]);
-        
-        % Get unique labels and sort them for consistent coloring
-        labels = unique(segVolPerm(segVolPerm > 0));
-        labels = sort(labels); % Ensure consistent ordering
-        if isempty(labels)
-            return;
-        end
-        
-        % Create isosurfaces for each label with distinct colors
-        % Use a colormap that provides good distinction
-        numLabels = numel(labels);
-        if numLabels <= 10
-            colors = lines(numLabels);
-        elseif numLabels <= 20
-            colors = hsv(numLabels);
-        else
-            % For many labels, use a more varied colormap with better distribution
-            colors = hsv(numLabels);
-            % Adjust saturation and value for better visibility
-            colors(:, 2) = colors(:, 2) * 0.9 + 0.1; % Saturation
-            colors(:, 3) = colors(:, 3) * 0.7 + 0.3; % Brightness
-        end
-        
-        maskPatches = gobjects(numLabels, 1);
-        patchIdx = 1;
-        
-        for i = 1:numLabels
-            label = labels(i);
-            mask = segVolPerm == label;
-            if ~any(mask(:))
-                continue;
-            end
-            
-            try
-                % Downsample mask for performance
-                origSize = size(mask);
-                downsampleFactor = 2;
-                if any(origSize > 100)
-                    idx1 = 1:downsampleFactor:origSize(1);
-                    idx2 = 1:downsampleFactor:origSize(2);
-                    idx3 = 1:downsampleFactor:origSize(3);
-                    mask = mask(idx1, idx2, idx3);
-                end
-                
-                fv = isosurface(mask, 0.5);
-                if isempty(fv.vertices)
-                    continue;
-                end
-                
-                % Scale vertices back if downsampled
-                if downsampleFactor > 1
-                    fv.vertices = fv.vertices * downsampleFactor;
-                end
-                
-                % Use the color for this specific label index (i, not mod)
-                labelColor = colors(i, :);
-                
-                maskPatches(patchIdx) = patch(overlayAxes, fv, ...
-                    'FaceColor', labelColor, ...
-                    'EdgeColor', 'none', ...
-                    'FaceAlpha', maskAlpha, ...
-                    'HitTest', 'off', ...  % Patches don't intercept clicks
-                    'PickableParts', 'none', ...
-                    'Visible', 'on');
-                
-                % Store label ID for reference
-                maskPatches(patchIdx).UserData = label;
-                patchIdx = patchIdx + 1;
-            catch ME
-                warning('paramMap_GUI:TOFMaskPatchFailed', ...
-                        'Failed to create patch for label %d: %s', label, ME.message);
-                continue;
-            end
-        end
-        
-        % Store only valid patches
-        if patchIdx > 1
-            validPatches = maskPatches(1:patchIdx-1);
-            valid = false(size(validPatches));
-            for j = 1:numel(validPatches)
-                valid(j) = isgraphics(validPatches(j));
-            end
-            appData.tofMaskPatches = validPatches(valid);
-        else
-            appData.tofMaskPatches = gobjects(0);
-        end
-        appData.tofOverlayAxes = overlayAxes;
-        
-        % Debug: check if patches were created
-        if isempty(appData.tofMaskPatches)
-            warning('paramMap_GUI:NoMaskPatches', 'No mask patches were created for TOF overlay');
-        end
-        
-        % Set axes properties to match volume dimensions
-        % Use TOF volume size to match volshow's coordinate system
-        try
-            tofVolSize = size(appData.tofVolume);
-            segVolSize = size(segVolPerm);
-            
-            % volshow uses 1-based indexing, so set limits to match volume dimensions
-            % The coordinate system should match: [x, y, z] = [columns, rows, slices]
-            set(overlayAxes, ...
-                'XLim', [0.5 segVolSize(2)+0.5], ...
-                'YLim', [0.5 segVolSize(1)+0.5], ...
-                'ZLim', [0.5 segVolSize(3)+0.5]);
-            
-            axis(overlayAxes, 'equal');
-            axis(overlayAxes, 'vis3d');
-            
-            % Set default view (sagittal-like, matching main window)
-            view(overlayAxes, [1 0.1 0.1]);
-            
-            % Add lighting
-            try
-                camlight(overlayAxes, 'headlight');
-                lighting(overlayAxes, 'gouraud');
-            catch
-                % Lighting might not work on all axes types
-            end
-            
-            % Bring patches to front so they're visible
-            if ~isempty(appData.tofMaskPatches)
-                for j = 1:numel(appData.tofMaskPatches)
-                    if isgraphics(appData.tofMaskPatches(j))
-                        uistack(appData.tofMaskPatches(j), 'top');
-                    end
-                end
-            end
-            
-            % Ensure axes is on top for interaction and visibility
-            uistack(overlayAxes, 'top');
-            
-            % Force a redraw
-            drawnow;
-        catch ME
-            warning('paramMap_GUI:TOFAxesSetupFailed', ...
-                    'Failed to setup overlay axes: %s', ME.message);
-        end
-        
-    catch ME
-        warning('paramMap_GUI:TOFMaskOverlayFailed', ...
-                'Failed to add mask overlays to TOF window: %s', ME.message);
-    end
-end
-
-% Function to update TOF window
-function appData = updateTOFWindow(mainFig, appData, tofVolMasked, tofAlpha, maskAlpha)
-    if isfield(appData, 'tofVolshow') && ~isempty(appData.tofVolshow)
-        try
-            % Always update volshow data and settings, even if thresholded out
-            if isvalid(appData.tofVolshow)
-                appData.tofVolshow.VolumeData = tofVolMasked;
-                appData.tofVolshow.Alphamap = linspace(0, tofAlpha, 256);
-                appData.tofVolshow.Visible = 'on';
-                drawnow; % Force update
-            end
-        catch ME
-            warning('paramMap_GUI:TOFUpdateFailed', 'Failed to update TOF volume: %s', ME.message);
-        end
-    end
-    
-    % Update control values
-    if isfield(appData, 'tofMinSlider') && isgraphics(appData.tofMinSlider)
-        appData.tofMinSlider.Value = appData.tofThresholds(1);
-    end
-    if isfield(appData, 'tofMaxSlider') && isgraphics(appData.tofMaxSlider)
-        appData.tofMaxSlider.Value = appData.tofThresholds(2);
-    end
-    if isfield(appData, 'tofMinEditTOF') && isgraphics(appData.tofMinEditTOF)
-        appData.tofMinEditTOF.String = sprintf('%.2f', appData.tofThresholds(1));
-    end
-    if isfield(appData, 'tofMaxEditTOF') && isgraphics(appData.tofMaxEditTOF)
-        appData.tofMaxEditTOF.String = sprintf('%.2f', appData.tofThresholds(2));
-    end
-    if isfield(appData, 'tofAlphaSliderTOF') && isgraphics(appData.tofAlphaSliderTOF)
-        appData.tofAlphaSliderTOF.Value = tofAlpha;
-    end
-    if isfield(appData, 'maskAlphaSliderTOF') && isgraphics(appData.maskAlphaSliderTOF)
-        appData.maskAlphaSliderTOF.Value = maskAlpha;
-    end
-    
-    % Create mask overlays if they don't exist
-    if ~isfield(appData, 'tofMaskPatches') || isempty(appData.tofMaskPatches)
-        appData = addMaskOverlaysToTOF(mainFig, appData, maskAlpha);
-    else
-        % Update mask overlay alpha
-        for i = 1:numel(appData.tofMaskPatches)
-            if isgraphics(appData.tofMaskPatches(i))
-                try
-                    appData.tofMaskPatches(i).FaceAlpha = maskAlpha;
-                catch
-                end
-            end
-        end
-    end
-end
-
-% Callback functions for TOF window controls
-function updateTOFThresholdFromSlider(mainFig, whichLimit, value)
-    appData = guidata(mainFig);
-    updateTOFThreshold(mainFig, whichLimit, value);
-    appData = guidata(mainFig); % Refresh after update
-    % Update edit box in TOF window
-    if strcmp(whichLimit, 'min') && isfield(appData, 'tofMinEditTOF') && isgraphics(appData.tofMinEditTOF)
-        appData.tofMinEditTOF.String = sprintf('%.2f', value);
-    elseif strcmp(whichLimit, 'max') && isfield(appData, 'tofMaxEditTOF') && isgraphics(appData.tofMaxEditTOF)
-        appData.tofMaxEditTOF.String = sprintf('%.2f', value);
-    end
-    guidata(mainFig, appData);
-end
-
-function updateTOFThresholdFromEdit(mainFig, whichLimit, value)
-    if ~isfinite(value)
-        return;
-    end
-    updateTOFThreshold(mainFig, whichLimit, value);
-    % Update slider in TOF window
-    appData = guidata(mainFig);
-    if strcmp(whichLimit, 'min') && isfield(appData, 'tofMinSlider') && isgraphics(appData.tofMinSlider)
-        appData.tofMinSlider.Value = value;
-    elseif strcmp(whichLimit, 'max') && isfield(appData, 'tofMaxSlider') && isgraphics(appData.tofMaxSlider)
-        appData.tofMaxSlider.Value = value;
-    end
-end
-
-function updateTOFAlphaFromTOFWindow(mainFig, value)
-    appData = guidata(mainFig);
-    if isfield(appData, 'tofAlphaSlider') && isgraphics(appData.tofAlphaSlider)
-        appData.tofAlphaSlider.Value = value;
-    end
-    guidata(mainFig, appData);
-    % Update TOF overlay with new alpha
-    updateTOFOverlay(mainFig);
-end
-
-function updateMaskAlphaFromTOFWindow(mainFig, value)
-    appData = guidata(mainFig);
-    if isfield(appData, 'alphaSlider') && isgraphics(appData.alphaSlider)
-        appData.alphaSlider.Value = value;
-    end
-    guidata(mainFig, appData);
-    applyMaskAlphasAndTOF(mainFig);
-end
-
-function closeTOFWindow(mainFig, tofFig)
-    appData = guidata(mainFig);
-    if isfield(appData, 'tofVolshow') && ~isempty(appData.tofVolshow)
-        try
-            delete(appData.tofVolshow);
-        catch
-        end
-        appData.tofVolshow = [];
-    end
-    appData.tofWindow = [];
-    if isfield(appData, 'showTOF')
-        appData.showTOF = false;
-    end
-    if isfield(appData, 'tofCheckbox') && isgraphics(appData.tofCheckbox)
-        appData.tofCheckbox.Value = 0;
-    end
-    guidata(mainFig, appData);
-    delete(tofFig);
-end
-
-% Helper function to create volume rendering in the same axes
-function patches = createVolumeRendering(ax, volume, alpha, color, affineMat)
-    % Create volume rendering using multiple isosurfaces at different thresholds
-    % This simulates volshow's volume rendering but works in regular axes
-    
-    patches = {};
-    
-    % Get volume dimensions
-    volSize = size(volume);
-    
-    % Create coordinate grids
-    % Transform voxel coordinates to world coordinates using affine matrix
-    [x, y, z] = meshgrid(1:volSize(2), 1:volSize(1), 1:volSize(3));
-    
-    % Apply affine transformation to get world coordinates
-    if ~isempty(affineMat) && size(affineMat, 1) == 4 && size(affineMat, 2) == 4
-        % Convert voxel coordinates to homogeneous coordinates
-        coords = [x(:), y(:), z(:), ones(numel(x), 1)]';
-        % Transform to world coordinates
-        worldCoords = affineMat * coords;
-        % Reshape back to volume dimensions
-        x = reshape(worldCoords(1, :), volSize);
-        y = reshape(worldCoords(2, :), volSize);
-        z = reshape(worldCoords(3, :), volSize);
-    end
-    
-    % Find non-zero values for rendering
-    validMask = volume > 0;
-    if ~any(validMask(:))
-        return;
-    end
-    
-    % Get intensity range for thresholding
-    validVals = volume(validMask);
-    minVal = min(validVals);
-    maxVal = max(validVals);
-    
-    % Create multiple isosurfaces at different thresholds for volume rendering effect
-    % Use fewer isosurfaces for performance, but enough for smooth appearance
-    numIsosurfaces = 8;
-    thresholds = linspace(minVal + 0.1*(maxVal-minVal), maxVal, numIsosurfaces);
-    
-    % Calculate alpha for each isosurface (higher intensity = more opaque)
-    alphas = linspace(alpha * 0.3, alpha, numIsosurfaces);
-    
-    for i = 1:numIsosurfaces
-        try
-            % Create isosurface at this threshold
-            fv = isosurface(x, y, z, volume, thresholds(i));
-            
-            if ~isempty(fv.vertices)
-                % Create patch with appropriate transparency
-                p = patch(ax, fv, ...
-                    'FaceColor', color, ...
-                    'EdgeColor', 'none', ...
-                    'FaceAlpha', alphas(i), ...
-                    'HitTest', 'off', ...
-                    'Visible', 'on');
-                patches{end+1} = p;
-            end
-        catch
-            % Skip if isosurface creation fails
-            continue;
-        end
-    end
-    
-    % If no isosurfaces were created, create a single one at median threshold
-    if isempty(patches)
-        try
-            fv = isosurface(x, y, z, volume, median(validVals));
-            if ~isempty(fv.vertices)
-                p = patch(ax, fv, ...
-                    'FaceColor', color, ...
-                    'EdgeColor', 'none', ...
-                    'FaceAlpha', alpha, ...
-                    'HitTest', 'off', ...
-                    'Visible', 'on');
-                patches{1} = p;
-            end
-        catch
-        end
-    end
-end
-
-% Helper function to update existing volume rendering
-function updateVolumeRendering(patches, volume, alpha, affineMat)
-    % Update existing volume rendering patches with new data
-    
-    if isempty(patches)
-        return;
-    end
-    
-    % Get volume dimensions
-    volSize = size(volume);
-    
-    % Create coordinate grids
-    [x, y, z] = meshgrid(1:volSize(2), 1:volSize(1), 1:volSize(3));
-    
-    % Apply affine transformation
-    if ~isempty(affineMat) && size(affineMat, 1) == 4 && size(affineMat, 2) == 4
-        coords = [x(:), y(:), z(:), ones(numel(x), 1)]';
-        worldCoords = affineMat * coords;
-        x = reshape(worldCoords(1, :), volSize);
-        y = reshape(worldCoords(2, :), volSize);
-        z = reshape(worldCoords(3, :), volSize);
-    end
-    
-    % Find valid values
-    validMask = volume > 0;
-    if ~any(validMask(:))
-        % Hide all patches if no data
-        for i = 1:length(patches)
-            if isgraphics(patches{i}) && isvalid(patches{i})
-                patches{i}.Visible = 'off';
-            end
-        end
-        return;
-    end
-    
-    validVals = volume(validMask);
-    minVal = min(validVals);
-    maxVal = max(validVals);
-    
-    % Update patches
-    numIsosurfaces = min(length(patches), 8);
-    thresholds = linspace(minVal + 0.1*(maxVal-minVal), maxVal, numIsosurfaces);
-    alphas = linspace(alpha * 0.3, alpha, numIsosurfaces);
-    
-    for i = 1:numIsosurfaces
-        if i <= length(patches) && isgraphics(patches{i}) && isvalid(patches{i})
-            try
-                % Create new isosurface
-                fv = isosurface(x, y, z, volume, thresholds(i));
-                if ~isempty(fv.vertices)
-                    % Update patch
-                    set(patches{i}, ...
-                        'Vertices', fv.vertices, ...
-                        'Faces', fv.faces, ...
-                        'FaceAlpha', alphas(i), ...
-                        'Visible', 'on');
-                else
-                    patches{i}.Visible = 'off';
-                end
-            catch
-                patches{i}.Visible = 'off';
-            end
-        end
-    end
-    
-    % Hide extra patches if we have fewer thresholds now
-    for i = numIsosurfaces + 1:length(patches)
-        if isgraphics(patches{i}) && isvalid(patches{i})
-            patches{i}.Visible = 'off';
-        end
-    end
-end
-

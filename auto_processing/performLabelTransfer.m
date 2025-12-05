@@ -1,4 +1,4 @@
-function [correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, output_path, imageData, refImage, data_struct)
+function [correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, output_path, imageData, refImage, data_struct, use_eicab_whole_brain)
     % Perform label transfer between eICAB and QVT masks
     % Includes 180-degree flip, SPM registration, and label transfer
     % Inputs:
@@ -30,6 +30,9 @@ function [correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, outpu
 
     % select eICAB orig_eICAB_CW file
     fileList = dir(fullfile(eICAB_path, '**/*_eICAB_CW.nii*'));
+    if use_eicab_whole_brain
+        fileList = dir(fullfile(eICAB_path, '**/*_eICAB_WB.nii*'));
+    end
     if isempty(fileList)
         error('No eICAB orig_eICAB_CW file found in the specified path.');
     end

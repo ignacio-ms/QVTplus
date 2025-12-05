@@ -7,7 +7,9 @@ clear; clc;
 
 % Define base paths
 patient_id = 'PESA10758400';
-base_path = '/home/imarcoss/NetVolumes/Tierra/LAB_VF-ICH/LAB/MCC LAB/_IgnacioMarcos/LabVF/PESA-Brain/';
+% base_path = '/home/imarcoss/NetVolumes/Tierra/LAB_VF-ICH/LAB/MCC LAB/_IgnacioMarcos/LabVF/PESA-Brain/';
+base_path = '/data_local/LabVF/PESA-Brain/DATA/Batch1_FP/';
+use_eicab_whole_brain = true;
 
 if strcmp(patient_id, 'all')
     dir_listing = dir(fullfile(base_path, 'DATA/Nifti'));
@@ -22,10 +24,13 @@ for idx = 1:numel(patient_ids)
     current_patient_id = patient_ids{idx};
     disp(['--------------------------------']);
     disp(['Processing patient: ' current_patient_id]);
-    path_to_data = fullfile(base_path, 'DATA/Nifti', current_patient_id, '4DFlow')
-    eICAB_path = fullfile(base_path, 'RESULTS/eICAB', current_patient_id)
+    % path_to_data = fullfile(base_path, 'DATA/Nifti', current_patient_id, '4DFlow')
+    % eICAB_path = fullfile(base_path, 'RESULTS/eICAB', current_patient_id)
+    path_to_data = fullfile(base_path, 'Nifti_Reorganized', current_patient_id, '4DFlow')
+    eICAB_path = fullfile(base_path, 'eICAB', current_patient_id)
     % output_path = fullfile(base_path, 'RESULTS/QVTPlus', current_patient_id)
-    output_path = fullfile('/data_local/LabVF/PESA-Brain/RESULTS/QVTPlus_Refactored/', current_patient_id)
+    % output_path = fullfile('/data_local/LabVF/PESA-Brain/RESULTS/QVTPlus_Refactored/', current_patient_id)
+    output_path = fullfile('/data_local/LabVF/PESA-Brain/DATA/Batch1_FP/QVTPlus/', current_patient_id)
     mkdir(output_path);
     disp(['--------------------------------']);
 
@@ -33,7 +38,7 @@ for idx = 1:numel(patient_ids)
     [data_struct, imageData] = loadPreprocessedData(path_to_data, output_path);
 
     % Perform label transfer and preprocessing
-    [correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, output_path, imageData, path_to_data, data_struct);
+    [correspondenceDict, multiQVT] = performLabelTransfer(eICAB_path, output_path, imageData, path_to_data, data_struct, use_eicab_whole_brain);
 
     % Generate LOCs
     [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDict, multiQVT);

@@ -81,8 +81,15 @@ json_files = dir(fullfile(ap_path, '*.json'));
 json_mag = fileread(fullfile(json_files(1).folder, json_files(1).name));
 json_mag = jsondecode(json_mag);
 
-% Load magnitude volume
+% Load magnitude volume (supports both .nii.gz and .nii)
 magvol = dir(fullfile(ap_path, '*.nii.gz'));
+if isempty(magvol)
+    % Fall back to uncompressed .nii
+    magvol = dir(fullfile(ap_path, '*.nii'));
+    if isempty(magvol)
+        error('No magnitude NIfTI file found in %s (tried both .nii.gz and .nii)', ap_path);
+    end
+end
 magvol = spm_vol(fullfile(magvol(1).folder, magvol(1).name));
 % Store original affine matrix for preserving image orientation
 originalAffine = magvol(1).mat;
@@ -90,20 +97,41 @@ originalAffine = magvol(1).mat;
 % mag = flip(spm_read_vols(magvol), 3
 mag = spm_read_vols(magvol);
 
-% Load phase volumes for each direction
+% Load phase volumes for each direction (supports both .nii.gz and .nii)
 vxvol = dir(fullfile(ap_path, '*_ph.nii.gz'));
+if isempty(vxvol)
+    % Fall back to uncompressed .nii
+    vxvol = dir(fullfile(ap_path, '*_ph.nii'));
+    if isempty(vxvol)
+        error('No phase NIfTI file found in %s (tried both .nii.gz and .nii)', ap_path);
+    end
+end
 vxvol = spm_vol(fullfile(vxvol(1).folder, vxvol(1).name));
 % REMOVED: flip operation - assuming input data is already RAS oriented
 % vx = flip(spm_read_vols(vxvol), 3);
 vx = spm_read_vols(vxvol);
 
 vyvol = dir(fullfile(rl_path, '*_ph.nii.gz'));
+if isempty(vyvol)
+    % Fall back to uncompressed .nii
+    vyvol = dir(fullfile(rl_path, '*_ph.nii'));
+    if isempty(vyvol)
+        error('No phase NIfTI file found in %s (tried both .nii.gz and .nii)', rl_path);
+    end
+end
 vyvol = spm_vol(fullfile(vyvol(1).folder, vyvol(1).name));
 % REMOVED: flip operation - assuming input data is already RAS oriented
 % vy = flip(spm_read_vols(vyvol), 3);
 vy = spm_read_vols(vyvol);
 
 vzvol = dir(fullfile(fh_path, '*_ph.nii.gz'));
+if isempty(vzvol)
+    % Fall back to uncompressed .nii
+    vzvol = dir(fullfile(fh_path, '*_ph.nii'));
+    if isempty(vzvol)
+        error('No phase NIfTI file found in %s (tried both .nii.gz and .nii)', fh_path);
+    end
+end
 vzvol = spm_vol(fullfile(vzvol(1).folder, vzvol(1).name));
 % REMOVED: flip operation - assuming input data is already RAS oriented
 % vz = flip(spm_read_vols(vzvol), 3);
