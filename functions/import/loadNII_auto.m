@@ -208,6 +208,7 @@ end
 imageData.MAG = MAG;
 imageData.CD = timeMIP; 
 imageData.V = vMean;
+imageData.v = v; % Store time-resolved velocity for time-resolved CD computation
 imageData.Segmented = segment;
 imageData.Header = json_mag;
 % Store original affine matrix to preserve image orientation

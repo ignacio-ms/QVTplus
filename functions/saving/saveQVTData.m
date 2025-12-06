@@ -32,6 +32,12 @@ function [data_struct, imageData] = saveQVTData(directory,area_val,diam_val,bran
     data_struct.pixelSpace = pixelSpace;
     data_struct.VoxDims = VoxDims;
     data_struct.PIvel_val =PIvel_val;
+    % Time-resolved CD cross-sections (optional, computed separately)
+    if isfield(data_struct, 'timeMIPcrossectionTR')
+        % Already set, keep it
+    else
+        data_struct.timeMIPcrossectionTR = []; % Placeholder if not computed
+    end
     % Store original affine matrix to preserve image orientation
     if isfield(imageData, 'OriginalAffine')
         data_struct.OriginalAffine = imageData.OriginalAffine;

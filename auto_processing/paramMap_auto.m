@@ -43,10 +43,44 @@ for idx = 1:numel(patient_ids)
     % Generate LOCs
     [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDict, multiQVT);
 
+    % Compute time-resolved Complex Difference cross-sections
+    % This enables time-resolved CD visualization in the GUI when "Sync Images" is enabled
+    try
+        timeMIPcrossectionTR = computeTimeResolvedCD(data_struct, imageData, path_to_data, output_path);
+        % Add to data_struct for saving
+        data_struct.timeMIPcrossectionTR = timeMIPcrossectionTR;
+        % Update the saved .mat file
+        matInfo = dir(fullfile(output_path, 'qvtData_ISOfix_*.mat'));
+        if ~isempty(matInfo)
+            [~, newestIdx] = max([matInfo.datenum]);
+            matFile = fullfile(output_path, matInfo(newestIdx).name);
+            % Load existing data
+            savedData = load(matFile);
+            % Update data_struct
+            savedData.data_struct.timeMIPcrossectionTR = timeMIPcrossectionTR;
+            % Save back
+            save(matFile, '-struct', 'savedData', '-v7.3');
+            disp('Time-resolved CD data saved successfully.');
+        end
+    catch ME
+        warning('computeTimeResolvedCD:Failed', ...
+                'Failed to compute time-resolved CD: %s\nThis feature will not be available in the GUI.', ...
+                ME.message);
+    end
+
     % Save vessel-specific data automatically
     saveVesselData(LOCs, data_struct, output_path);
 
     %Save data for qvt+
     generateQVTplus(correspondenceDict, LOCs, output_path)
     disp(['Processing completed successfully for patient: ' current_patient_id]);
+    
+    % Save last output path for GUI auto-launch (if --gui flag is used)
+    % Save to a temporary file in the output directory
+    lastOutputFile = fullfile(output_path, '.last_output_path.txt');
+    fid = fopen(lastOutputFile, 'w');
+    if fid ~= -1
+        fprintf(fid, '%s', output_path);
+        fclose(fid);
+    end
 end
