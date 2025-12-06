@@ -18,11 +18,11 @@ function paramMap_GUI(outputDir)
 
     % If output directory not provided, prompt user
     if nargin < 1 || isempty(outputDir)
-        outputDir = uigetdir(pwd, 'Select a QVT+ output directory');
-        if isequal(outputDir, 0)
-            disp('paramMap_GUI: No folder selected. Exiting.');
-            return;
-        end
+    outputDir = uigetdir(pwd, 'Select a QVT+ output directory');
+    if isequal(outputDir, 0)
+        disp('paramMap_GUI: No folder selected. Exiting.');
+        return;
+    end
     else
         % Validate provided path
         if ~ischar(outputDir) && ~isstring(outputDir)
@@ -361,14 +361,14 @@ function paramMap_GUI(outputDir)
     
     % Percentile toggle (moved to top with Vec section)
     percentileCheckbox = uicontrol('Style', 'checkbox', ...
-                                   'Parent', app.figure, ...
-                                   'Units', 'normalized', ...
+                              'Parent', app.figure, ...
+                              'Units', 'normalized', ...
                                    'Position', [0.88 0.86 0.10 0.028], ...
                                    'String', 'Use 99th %ile', ...
-                                   'Value', 0, ...
+                              'Value', 0, ...
                                    'BackgroundColor', [1 1 1], ...
                                    'ForegroundColor', [0 0 0], ...
-                                   'FontSize', 8, ...
+                              'FontSize', 8, ...
                                    'Callback', @(src,~) updateColorRangeMode(app.figure, src.Value));
     
     % Vector Field Toggle
@@ -385,17 +385,17 @@ function paramMap_GUI(outputDir)
     
     % Vector Settings (Thickness & Scale) - Below checkbox
     uicontrol('Style', 'text', ...
-                              'Parent', app.figure, ...
-                              'Units', 'normalized', ...
+              'Parent', app.figure, ...
+              'Units', 'normalized', ...
               'Position', [0.88 0.80 0.10 0.022], ...
               'String', 'Vec Scale', ...
               'BackgroundColor', [1 1 1], ...
               'ForegroundColor', [0 0 0], ...
-                              'FontSize', 8, ...
-                              'HorizontalAlignment', 'left');
+              'FontSize', 8, ...
+              'HorizontalAlignment', 'left');
     vecScaleEdit = uicontrol('Style', 'edit', ...
-                             'Parent', app.figure, ...
-                             'Units', 'normalized', ...
+                                 'Parent', app.figure, ...
+                                 'Units', 'normalized', ...
                              'Position', [0.88 0.775 0.10 0.028], ...
                              'String', '2.5', ...
                              'BackgroundColor', [1 1 1], ...
@@ -404,8 +404,8 @@ function paramMap_GUI(outputDir)
                              'Callback', @(~,~) updateVectors(app.figure));
 
     uicontrol('Style', 'text', ...
-              'Parent', app.figure, ...
-              'Units', 'normalized', ...
+                        'Parent', app.figure, ...
+                        'Units', 'normalized', ...
               'Position', [0.88 0.745 0.10 0.022], ...
               'String', 'Vec Thick', ...
               'BackgroundColor', [1 1 1], ...
@@ -604,6 +604,8 @@ function paramMap_GUI(outputDir)
     appData.data_struct = data_struct;
     appData.currentParamIndex = 1;
     appData.atlasVolume = atlasVolume;
+    % Store imageData for true vector visualization
+    appData.imageData = imageData;
     % Time-resolved CD cross-sections (if available)
     if isfield(data_struct, 'timeMIPcrossectionTR') && ~isempty(data_struct.timeMIPcrossectionTR)
         appData.timeMIPcrossectionTR = data_struct.timeMIPcrossectionTR;
@@ -811,11 +813,11 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
                             uniLabels = unique(foundLabels);
                             for u = uniLabels(:)'
                                 voteMatrix(u, i) = voteMatrix(u, i) + sum(foundLabels == u);
+                                end
                             end
                         end
                     end
                 end
-            end
         end
 
         % 2. Assign labels to the winning vessel
@@ -1497,7 +1499,7 @@ function updateCrossSections(fig, rowIdx)
         cd = reshape(appData.timeMIPcrossectionTR(rowIdx,:,frame), imdim, imdim);
     else
         % Use time-averaged CD
-        cd = reshape(appData.timeMIPcrossection(rowIdx,:), imdim, imdim);
+    cd = reshape(appData.timeMIPcrossection(rowIdx,:), imdim, imdim);
     end
     cdValue = cd(centerCoord(1), centerCoord(2));
     showCrossSection(appData.axesCD, cd, mask, 'gray', 'Complex Difference', centerCoord, cdValue);
@@ -1506,7 +1508,7 @@ function updateCrossSections(fig, rowIdx)
     velTA = reshape(appData.vTimeFrameave(rowIdx,:), imdim, imdim);
     velTAValue = velTA(centerCoord(1), centerCoord(2));
     showCrossSection(appData.axesVelTA, velTA, mask, 'gray', 'Velocity (TA)', centerCoord, velTAValue);
-    
+
     % Velocity TR (time-resolved)
     v1 = squeeze(appData.VplanesAllx(rowIdx,:,:));
     v2 = squeeze(appData.VplanesAlly(rowIdx,:,:));
@@ -2077,59 +2079,116 @@ function updateVectors(fig)
         if maxVal == 0, maxVal = 1; end
     end
     
-    % Length of vector in data units (approx voxel units?)
-    % Use SIGNED value for length scaling to preserve direction/sense
-    % If flow is negative (backward relative to centerline), vector should point backwards.
-    % We previously used ABS which forced all arrows forward.
-    % Reverting to SIGNED calculation for 'lenFactors'.
-    % lenFactors = (abs(flowVals) / maxVal) * 5 * scaleVal; % OLD (Magnitude only)
-    
-    % We calculate signed factor, then apply to tangent.
-    % This makes the vector point in the direction of flow.
-    % lenFactors = (flowVals / maxVal) * 5 * scaleVal;
-    
-    % Calculate end points (tips)
-    % Tangents point along centerline.
-    % Flow value sign indicates direction relative to centerline tangent.
-    % If flow > 0, vector = tangent * len.
-    % If flow < 0, vector = tangent * (-len) = -tangent * |len|.
-    % So multiplying tangent by SIGNED flow automatically handles forward/backward sense.
-    
-    % Use SIGNED flow for length factor direction
-    % lenFactors magnitude is length, sign is direction
     % -----------------------------------------------------------
-    % HANDLE - SIGN FOR flowVals: SOMETHING IS OFF HERE...
+    % CALCULATE VECTOR TIPS (Using True 3D Velocity if available)
     % -----------------------------------------------------------
-    lenFactors = (-flowVals / maxVal) * 5 * scaleVal; 
     
-    % Calculate end points (tips)
-    Tips = coords + tangents .* lenFactors;
+    useTrueVectors = isfield(appData, 'imageData') && ...
+                     isfield(appData.imageData, 'v') && ...
+                     ~isempty(appData.imageData.v);
+                     
+    if useTrueVectors
+        % Extract true velocity components from the volume
+        % imageData.v is [X, Y, Z, 3, T] (RAS oriented typically)
+        vVol = appData.imageData.v;
+        
+        if appData.isAnimating
+            % Time-resolved
+            idxT = frame;
+        else
+            % Static: Use Peak or Mean? Default to frame 1 or Mean if available
+            % To be consistent with paramMap, static view often uses mean flow.
+            % But imageData.v is TR. Let's use the Peak Frame logic or just frame 1.
+            % Better: Use the calculated vMean if available
+            if isfield(appData.imageData, 'V')
+                vVol = appData.imageData.V; % [X,Y,Z,3] Mean Velocity
+                idxT = 1;
+            else
+                idxT = 1;
+            end
+        end
+        
+        % Handle dimensions
+        if ndims(vVol) == 5
+            vx_vol = -vVol(:,:,:,1,idxT);
+            vy_vol = vVol(:,:,:,2,idxT);
+            vz_vol = -vVol(:,:,:,3,idxT);
+        else
+            vx_vol = -vVol(:,:,:,1);
+            vy_vol = vVol(:,:,:,2);
+            vz_vol = -vVol(:,:,:,3);
+        end
+        
+        % Interpolate velocity at centerline coordinates
+        % coords are [X Y Z]. interp3 expects (vol, Yq, Xq, Zq) for [Y X Z] dims
+        % or (vol, y, x, z) if vol is [X Y Z].
+        % Assuming spm_read_vols returns [X Y Z]:
+        vx_pts = interp3(vx_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+        vy_pts = interp3(vy_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+        vz_pts = interp3(vz_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+        
+        trueDir = [vx_pts, vy_pts, vz_pts];
+        
+        % Normalize direction
+        magV = sqrt(sum(trueDir.^2, 2));
+        dirV = trueDir ./ (magV + eps);
+        
+        % Length: Scaled by Velocity Magnitude (magV) instead of Flow
+        % This ensures vectors are visible even if Flux is zero (e.g. swirling flow).
+        % magV is in mm/s. maxVel_val is in cm/s.
+        
+        if isfield(appData, 'maxVel_val')
+            globalMaxVel = max(appData.maxVel_val, [], 'all');
+        else
+            globalMaxVel = 100;
+        end
+        if isempty(globalMaxVel) || globalMaxVel == 0, globalMaxVel = 100; end
+        
+        % Convert magV to cm/s for scaling consistency
+        magV_cm = magV * 0.1;
+        
+        % Calculate length factors
+        lenFactors = (magV_cm / globalMaxVel) * 5 * scaleVal;
+        
+        Tips = coords + dirV .* lenFactors;
+        
+    else
+        % Fallback: Tangent projection (Old method)
+        % Use SIGNED flow for length factor direction
+        lenFactors = (-flowVals / maxVal) * 5 * scaleVal; 
+        Tips = coords + tangents .* lenFactors;
+    end
     
     % --- Arrow Head Construction ---
-    % Compute basis vectors U, V perpendicular to Tangents
-    Ref = repmat([0 0 1], size(tangents,1), 1);
-    isPar = abs(dot(tangents, Ref, 2)) > 0.99;
+    % Vector direction (normalized)
+    VecDir = Tips - coords;
+    vecLen = sqrt(sum(VecDir.^2, 2));
+    VecDir = VecDir ./ (vecLen + eps);
+    
+    % Use Tangents or True Direction for basis? Use VecDir for arrowhead alignment
+    % Compute basis vectors U, V perpendicular to Vector Direction
+    Ref = repmat([0 0 1], size(VecDir,1), 1);
+    isPar = abs(dot(VecDir, Ref, 2)) > 0.99;
     Ref(isPar, :) = repmat([0 1 0], sum(isPar), 1);
     
-    U = cross(tangents, Ref);
-    % Normalize U
+    U = cross(VecDir, Ref);
     uLen = sqrt(sum(U.^2, 2));
     U = U ./ (uLen + eps);
     
-    V = cross(tangents, U);
-    % Normalize V (should be already, but safe to ensure)
+    V = cross(VecDir, U);
     vLen = sqrt(sum(V.^2, 2));
     V = V ./ (vLen + eps);
     
     % Arrow Head Dimensions
-    headLen = lenFactors * 0.25;
-    headWid = lenFactors * 0.1;
+    % Recalculate length factors for head size based on display length
+    dispLen = vecLen; 
+    headLen = dispLen * 0.25;
+    headWid = dispLen * 0.1;
     
     % Base points of arrow head (Tripod shape)
-    % 3 lines from Tip back to base points
-    B1 = Tips - tangents.*headLen + U.*headWid;
-    B2 = Tips - tangents.*headLen - U.*0.5.*headWid + V.*0.866.*headWid;
-    B3 = Tips - tangents.*headLen - U.*0.5.*headWid - V.*0.866.*headWid;
+    B1 = Tips - VecDir.*headLen + U.*headWid;
+    B2 = Tips - VecDir.*headLen - U.*0.5.*headWid + V.*0.866.*headWid;
+    B3 = Tips - VecDir.*headLen - U.*0.5.*headWid - V.*0.866.*headWid;
     
     % Construct Patch Data (Shafts + Heads)
     n = size(coords, 1);
