@@ -695,34 +695,59 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
         segVol = permute(multiQVTvol, [2 1 3]);
         uniqueLabels = unique(segVol(segVol > 0));
 
-        % Map labels to vessel names using correspondenceDict
-        labelToVessel = containers.Map('KeyType', 'double', 'ValueType', 'char');
+        % Map labels to vessel names using a Voting Scheme (Majority Rule)
+        % This prevents a single stray point from stealing an entire vessel label.
+        
+        % 1. Tally votes: voteMatrix(labelID, vesselIndex) = count
         vesselKeys = fieldnames(correspondenceDict);
+        maxLabel = max(segVol(:));
+        if isempty(maxLabel) || maxLabel == 0
+            maxLabel = 0;
+        end
+        voteMatrix = zeros(maxLabel, numel(vesselKeys));
+        
         for i = 1:numel(vesselKeys)
             key = vesselKeys{i};
             segments = correspondenceDict.(key);
             for seg = segments(:)'
                 branchMask = data_struct.branchList(:,4) == seg;
                 if any(branchMask)
+                    % Extract coords and match the permutation used for segVol
                     coords = round(data_struct.branchList(branchMask, 1:3));
                     coordsPerm = [coords(:,2), coords(:,1), coords(:,3)];
+                    
                     validCoords = coordsPerm(:,1) >= 1 & coordsPerm(:,1) <= size(segVol,1) & ...
                                   coordsPerm(:,2) >= 1 & coordsPerm(:,2) <= size(segVol,2) & ...
                                   coordsPerm(:,3) >= 1 & coordsPerm(:,3) <= size(segVol,3);
+                    
                     if any(validCoords)
-                        linearIdx = sub2ind(size(segVol), coordsPerm(validCoords,1), ...
-                                           coordsPerm(validCoords,2), coordsPerm(validCoords,3));
-                        labels = unique(segVol(linearIdx));
-                        labels = labels(labels > 0);
-                        if ~isempty(labels)
-                            for lbl = labels(:)'
-                                if ~isKey(labelToVessel, lbl)
-                                    labelToVessel(lbl) = key;
-                                end
+                        linearIdx = sub2ind(size(segVol), ...
+                            coordsPerm(validCoords,1), ...
+                            coordsPerm(validCoords,2), ...
+                            coordsPerm(validCoords,3));
+                        
+                        foundLabels = segVol(linearIdx);
+                        foundLabels = foundLabels(foundLabels > 0);
+                        
+                        % Add counts to the matrix
+                        if ~isempty(foundLabels)
+                            uniLabels = unique(foundLabels);
+                            for u = uniLabels(:)'
+                                voteMatrix(u, i) = voteMatrix(u, i) + sum(foundLabels == u);
                             end
                         end
                     end
                 end
+            end
+        end
+
+        % 2. Assign labels to the winning vessel
+        labelToVessel = containers.Map('KeyType', 'double', 'ValueType', 'char');
+        for lbl = 1:maxLabel
+            [maxVotes, winnerIdx] = max(voteMatrix(lbl, :));
+            % Threshold: Optional, ensure at least >1 point supports this
+            if maxVotes > 0 
+                labelToVessel(lbl) = vesselKeys{winnerIdx};
             end
         end
 
