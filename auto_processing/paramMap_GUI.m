@@ -96,7 +96,7 @@ function paramMap_GUI(outputDir)
     hold(app.axes, 'on');
     axis(app.axes, 'equal');
     axis(app.axes, 'off');
-    view(app.axes, 3);
+    view(app.axes, [175.2822, 28.6338]); % Azimuth, Elevation
     % rotate3d(app.figure, 'on');
 
     % Try to load multilabel volume for colored isosurfaces
@@ -330,18 +330,18 @@ function paramMap_GUI(outputDir)
                               'FontSize', 8, ...
                               'HorizontalAlignment', 'left');
 
-    % Group 5: Action Buttons
+    % Group 5: Action Buttons (Moved down slightly to fit vector controls)
     focusButton = uicontrol('Style', 'pushbutton', ...
                             'Parent', app.figure, ...
                             'Units', 'normalized', ...
-                            'Position', [0.66 0.68 0.10 0.028], ...
+                            'Position', [0.66 0.65 0.10 0.028], ...
                             'String', 'Focus LOC', ...
                             'FontSize', 8);
 
     resetButton = uicontrol('Style', 'pushbutton', ...
                             'Parent', app.figure, ...
                             'Units', 'normalized', ...
-                            'Position', [0.77 0.68 0.10 0.028], ...
+                            'Position', [0.77 0.65 0.10 0.028], ...
                             'String', 'Reset', ...
                             'FontSize', 8, ...
                             'Callback', @(~,~) resetView(app.figure));
@@ -351,7 +351,7 @@ function paramMap_GUI(outputDir)
     syncImagesCheckbox = uicontrol('Style', 'checkbox', ...
                                    'Parent', app.figure, ...
                                    'Units', 'normalized', ...
-                                   'Position', [0.88 0.89 0.10 0.028], ...
+                                   'Position', [0.88 0.90 0.10 0.028], ...
                                    'String', 'Sync Images', ...
                                    'Value', 0, ...
                                    'BackgroundColor', [1 1 1], ...
@@ -363,7 +363,7 @@ function paramMap_GUI(outputDir)
     percentileCheckbox = uicontrol('Style', 'checkbox', ...
                               'Parent', app.figure, ...
                               'Units', 'normalized', ...
-                                   'Position', [0.88 0.86 0.10 0.028], ...
+                                   'Position', [0.88 0.875 0.10 0.028], ...
                                    'String', 'Use 99th %ile', ...
                               'Value', 0, ...
                                    'BackgroundColor', [1 1 1], ...
@@ -375,7 +375,7 @@ function paramMap_GUI(outputDir)
     vectorCheckbox = uicontrol('Style', 'checkbox', ...
                         'Parent', app.figure, ...
                         'Units', 'normalized', ...
-                               'Position', [0.88 0.83 0.10 0.028], ...
+                               'Position', [0.88 0.85 0.10 0.028], ...
                                'String', 'Vectors', ...
                                'Value', 0, ...
                                'BackgroundColor', [1 1 1], ...
@@ -383,11 +383,23 @@ function paramMap_GUI(outputDir)
                                'FontSize', 8, ...
                                'Callback', @(src,~) toggleVectors(app.figure, src.Value));
     
+    % Color by Velocity Toggle
+    velColorCheckbox = uicontrol('Style', 'checkbox', ...
+                                 'Parent', app.figure, ...
+                                 'Units', 'normalized', ...
+                                 'Position', [0.88 0.825 0.10 0.028], ...
+                                 'String', 'Color by Vel', ...
+                                 'Value', 0, ...
+                                 'BackgroundColor', [1 1 1], ...
+                                 'ForegroundColor', [0 0 0], ...
+                                 'FontSize', 8, ...
+                                 'Callback', @(~,~) updateVectors(app.figure));
+
     % Vector Settings (Thickness & Scale) - Below checkbox
     uicontrol('Style', 'text', ...
               'Parent', app.figure, ...
               'Units', 'normalized', ...
-              'Position', [0.88 0.80 0.10 0.022], ...
+              'Position', [0.88 0.77 0.10 0.022], ...
               'String', 'Vec Scale', ...
               'BackgroundColor', [1 1 1], ...
               'ForegroundColor', [0 0 0], ...
@@ -396,8 +408,8 @@ function paramMap_GUI(outputDir)
     vecScaleEdit = uicontrol('Style', 'edit', ...
                                  'Parent', app.figure, ...
                                  'Units', 'normalized', ...
-                             'Position', [0.88 0.775 0.10 0.028], ...
-                             'String', '2.5', ...
+                             'Position', [0.88 0.745 0.10 0.028], ...
+                             'String', '1.5', ...
                              'BackgroundColor', [1 1 1], ...
                              'ForegroundColor', [0 0 0], ...
                              'FontSize', 8, ...
@@ -406,7 +418,7 @@ function paramMap_GUI(outputDir)
     uicontrol('Style', 'text', ...
                         'Parent', app.figure, ...
                         'Units', 'normalized', ...
-              'Position', [0.88 0.745 0.10 0.022], ...
+              'Position', [0.88 0.715 0.10 0.022], ...
               'String', 'Vec Thick', ...
               'BackgroundColor', [1 1 1], ...
               'ForegroundColor', [0 0 0], ...
@@ -415,8 +427,8 @@ function paramMap_GUI(outputDir)
     vecThickEdit = uicontrol('Style', 'edit', ...
                                  'Parent', app.figure, ...
                                  'Units', 'normalized', ...
-                             'Position', [0.88 0.72 0.10 0.028], ...
-                             'String', '3.0', ...
+                             'Position', [0.88 0.69 0.10 0.028], ...
+                             'String', '4.0', ...
                              'BackgroundColor', [1 1 1], ...
                              'ForegroundColor', [0 0 0], ...
                              'FontSize', 8, ...
@@ -460,10 +472,18 @@ function paramMap_GUI(outputDir)
                            'FontSize', 8, ...
                            'Callback', @(src,~) toggleAnimation(app.figure, src));
     
+    saveGifButton = uicontrol('Style', 'pushbutton', ...
+                              'Parent', app.figure, ...
+                              'Units', 'normalized', ...
+                              'Position', [0.72 0.18 0.06 0.025], ...
+                              'String', 'Save GIF', ...
+                              'FontSize', 8, ...
+                              'Callback', @(~,~) exportVectorGIF(app.figure));
+    
     timeSlider = uicontrol('Style', 'slider', ...
                            'Parent', app.figure, ...
                            'Units', 'normalized', ...
-                           'Position', [0.72 0.18 0.20 0.025], ...
+                           'Position', [0.79 0.18 0.13 0.025], ...
                            'Min', 1, 'Max', data_struct.nframes, ...
                            'Value', 1, ...
                            'SliderStep', [1/(data_struct.nframes-1), 1/(data_struct.nframes-1)], ...
@@ -540,8 +560,16 @@ function paramMap_GUI(outputDir)
     end
     lighting(app.axes, 'flat'); % Flat lighting to reduce smoothing appearance
     
-    % Set initial camera zoom (Zoom in slightly)
-    camzoom(app.axes, 1.2);
+    % Set camera configuration to match default viewing angle
+    app.axes.Projection = 'orthographic';
+    app.axes.CameraPosition = [193.2262, 256.9066, 107.0749];
+    app.axes.CameraTarget = [135.128, 112.2261, 27.8126];
+    app.axes.CameraUpVector = [-0.1689, -0.4205, 0.8914];
+    app.axes.CameraViewAngle = 29.0142;
+    app.axes.CameraPositionMode = 'manual';
+    app.axes.CameraTargetMode = 'manual';
+    app.axes.CameraUpVectorMode = 'manual';
+    app.axes.CameraViewAngleMode = 'manual';
 
     cb = colorbar(app.axes);
     cb.Color = [0 0 0];
@@ -618,9 +646,11 @@ function paramMap_GUI(outputDir)
     
     % Store handles
     appData.vectorCheckbox = vectorCheckbox;
+    appData.velColorCheckbox = velColorCheckbox;
     appData.vecThickEdit = vecThickEdit;
     appData.vecScaleEdit = vecScaleEdit;
     appData.playButton = playButton;
+    appData.saveGifButton = saveGifButton;
     appData.timeSlider = timeSlider;
     appData.speedSlider = speedSlider;
     appData.syncImagesCheckbox = syncImagesCheckbox;
@@ -1546,15 +1576,15 @@ function showCrossSection(ax, imageData, mask, cmapName, titleText, centerCoord,
             xRange = max(1, centerX-maskSize):min(imdim, centerX+maskSize);
             yRange = max(1, centerY-maskSize):min(imdim, centerY+maskSize);
             % Create red overlay mask
-            redMask = zeros(size(imageData));
-            redMask(xRange, yRange) = 1;
+            % redMask = zeros(size(imageData));
+            % redMask(xRange, yRange) = 1;
             % Display as red overlay with transparency
-            hRed = imagesc(ax, redMask);
-            hRed.AlphaData = redMask * 0.7; % 70% opacity
-            colormap(ax, [colormap(ax); 1 0 0]); % Add red to colormap
-            % Actually, better approach: use a patch or just overlay red pixels
-            % Simpler: just plot a small red square
-            delete(hRed); % Remove the imagesc approach
+            % hRed = imagesc(ax, redMask);
+            % hRed.AlphaData = redMask * 0.7; % 70% opacity
+            % colormap(ax, [colormap(ax); 1 0 0]); % Add red to colormap
+            % % Actually, better approach: use a patch or just overlay red pixels
+            % % Simpler: just plot a small red square
+            % delete(hRed); % Remove the imagesc approach
             % Use a small filled rectangle instead
             xRect = [centerY-0.5, centerY+0.5, centerY+0.5, centerY-0.5];
             yRect = [centerX-0.5, centerX-0.5, centerX+0.5, centerX+0.5];
@@ -1562,10 +1592,9 @@ function showCrossSection(ax, imageData, mask, cmapName, titleText, centerCoord,
             
             % Add text with pixel value shifted to top-right
             if nargin >= 7 && ~isempty(pixelValue) && isfinite(pixelValue)
-                % Shift text to top-right (increase both X and decrease Y)
-                text(ax, centerY + 3, centerX - 3, sprintf('%.2f', pixelValue), ...
+                text(ax, centerY + 10, centerX - 10, sprintf('%.2f', pixelValue), ...
                      'Color', 'r', 'FontSize', 7, 'FontWeight', 'bold', ...
-                     'BackgroundColor', [1 1 1 0.8], 'EdgeColor', 'r', ...
+                     'BackgroundColor', [1 1 1 0.5], 'EdgeColor', 'r', ...
                      'HorizontalAlignment', 'left');
             end
         end
@@ -2034,7 +2063,7 @@ function updateVectors(fig)
     
     % Get vector settings
     thickVal = str2double(appData.vecThickEdit.String);
-    if isnan(thickVal) || thickVal <= 0, thickVal = 2.0; end
+    if isnan(thickVal) || thickVal <= 0, thickVal = 3.0; end
     
     scaleVal = str2double(appData.vecScaleEdit.String);
     if isnan(scaleVal) || scaleVal <= 0, scaleVal = 1.5; end
@@ -2046,8 +2075,14 @@ function updateVectors(fig)
     tangents = appData.tangents;
     
     % Scale by current parameter (e.g. flow or velocity)
-    if appData.isAnimating
+    % Use time-resolved data if animating OR if we have a currentFrame set
+    % (e.g., during GIF export or manual frame updates)
+    if appData.isAnimating || (isfield(appData, 'currentFrame') && ~isempty(appData.currentFrame))
         frame = appData.currentFrame;
+        % Ensure frame is valid
+        if frame < 1 || frame > appData.nframes
+            frame = 1;
+        end
         % Stick to Flow Pulsatile but scale by Magnitude
         flowVals = appData.flowPulsatile(:, frame);
         globalRange = appData.globalFlowRange;
@@ -2080,10 +2115,15 @@ function updateVectors(fig)
     end
     
     % -----------------------------------------------------------
-    % CALCULATE VECTOR TIPS (Using True 3D Velocity if available)
+    % CALCULATE VECTOR TIPS (Using True 3D Velocity or Flow+Tangent)
     % -----------------------------------------------------------
     
-    useTrueVectors = isfield(appData, 'imageData') && ...
+    % Check if "Color by Vel" checkbox is enabled
+    useVelColor = isfield(appData, 'velColorCheckbox') && isgraphics(appData.velColorCheckbox) && ...
+                  appData.velColorCheckbox.Value;
+    
+    % Check if velocity data is available
+    useTrueVectors = useVelColor && isfield(appData, 'imageData') && ...
                      isfield(appData.imageData, 'v') && ...
                      ~isempty(appData.imageData.v);
                      
@@ -2092,8 +2132,10 @@ function updateVectors(fig)
         % imageData.v is [X, Y, Z, 3, T] (RAS oriented typically)
         vVol = appData.imageData.v;
         
-        if appData.isAnimating
-            % Time-resolved
+        % Use time-resolved data if animating OR if we have a currentFrame set
+        % (e.g., during GIF export or manual frame updates)
+        if appData.isAnimating || (isfield(appData, 'currentFrame') && ~isempty(appData.currentFrame))
+            % Time-resolved - use current frame
             idxT = frame;
         else
             % Static: Use Peak or Mean? Default to frame 1 or Mean if available
@@ -2109,23 +2151,29 @@ function updateVectors(fig)
         end
         
         % Handle dimensions
+        % Note: In loadNII_auto.m, velocity components are stored as:
+        %   Dimension 1 = vy (from RL folder) = RL/X direction
+        %   Dimension 2 = vx (from AP folder) = AP/Y direction
+        %   Dimension 3 = vz (from FH folder) = FH/Z direction
+        % Variable naming: vx_vol = RL/X, vy_vol = AP/Y, vz_vol = FH/Z
         if ndims(vVol) == 5
-            vx_vol = -vVol(:,:,:,1,idxT);
-            vy_vol = vVol(:,:,:,2,idxT);
-            vz_vol = -vVol(:,:,:,3,idxT);
+            vx_vol = vVol(:,:,:,1,idxT);  
+            vy_vol = vVol(:,:,:,2,idxT); 
+            vz_vol = vVol(:,:,:,3,idxT); 
         else
-            vx_vol = -vVol(:,:,:,1);
+            vx_vol = vVol(:,:,:,1); 
             vy_vol = vVol(:,:,:,2);
-            vz_vol = -vVol(:,:,:,3);
+            vz_vol = vVol(:,:,:,3);
         end
         
         % Interpolate velocity at centerline coordinates
         % coords are [X Y Z]. interp3 expects (vol, Yq, Xq, Zq) for [Y X Z] dims
         % or (vol, y, x, z) if vol is [X Y Z].
         % Assuming spm_read_vols returns [X Y Z]:
-        vx_pts = interp3(vx_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
-        vy_pts = interp3(vy_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
-        vz_pts = interp3(vz_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+        % vx_vol is RL (X), vy_vol is AP (Y), vz_vol is FH (Z)
+        vx_pts = interp3(vx_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);  % RL
+        vy_pts = interp3(vy_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);  % AP
+        vz_pts = interp3(vz_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);  % FH
         
         trueDir = [vx_pts, vy_pts, vz_pts];
         
@@ -2153,9 +2201,8 @@ function updateVectors(fig)
         Tips = coords + dirV .* lenFactors;
         
     else
-        % Fallback: Tangent projection (Old method)
-        % Use SIGNED flow for length factor direction
-        lenFactors = (-flowVals / maxVal) * 5 * scaleVal; 
+        % Fallback: Tangent projection (Old)
+        lenFactors = (flowVals / maxVal) * 5 * scaleVal; 
         Tips = coords + tangents .* lenFactors;
     end
     
@@ -2216,11 +2263,59 @@ function updateVectors(fig)
     Z = Z(:);
     
     % Colors (match vertices)
-    % Use ABSOLUTE value for coloring if animating (Magnitude)
-    if appData.isAnimating
+    % Use ABSOLUTE value for coloring if animating or in time-resolved mode (e.g., GIF export)
+    % Check if "Color by Vel" is selected (reuse variable from above)
+    % Note: useVelColor is already defined above, but we need to check if magV_cm exists
+    isTimeResolved = appData.isAnimating || (isfield(appData, 'currentFrame') && ~isempty(appData.currentFrame));
+    
+    if useVelColor && exist('magV_cm', 'var')
+        % Use Velocity Magnitude (cm/s)
+        colorData = magV_cm;
+        
+        % Update Color Axis for Velocity
+        % Use global max velocity for consistent scaling across frames
+        if isfield(appData, 'maxVel_val')
+            if appData.usePercentile
+                vMax = prctile(appData.maxVel_val(:), 99);
+            else
+                vMax = max(appData.maxVel_val(:), [], 'omitnan');
+            end
+        else
+            vMax = max(colorData(:), [], 'omitnan');
+        end
+        if isempty(vMax) || vMax == 0, vMax = 1; end
+        
+        caxis(appData.axes, [0 vMax]);
+        appData.cbMinEdit.String = '0.000';
+        appData.cbMaxEdit.String = sprintf('%.3f', vMax);
+        
+    elseif isTimeResolved
+        % Use absolute flow values for time-resolved visualization (animation or export)
         colorData = abs(flowVals);
+        % Restore Flow Limits if we switched back from Vel Color
+        % (re-apply standard limits logic)
+        if ~isempty(appData.manualColorRange)
+            caxis(appData.axes, appData.manualColorRange);
+            appData.cbMinEdit.String = sprintf('%.3f', appData.manualColorRange(1));
+            appData.cbMaxEdit.String = sprintf('%.3f', appData.manualColorRange(2));
+        elseif isfield(appData, 'globalFlowRange')
+            if appData.usePercentile
+                allData = abs(appData.flowPulsatile(:));
+                p99 = prctile(allData, 99);
+                range = [appData.globalFlowRange(1), p99];
+            else
+                range = appData.globalFlowRange;
+            end
+            caxis(appData.axes, range);
+            appData.cbMinEdit.String = sprintf('%.3f', range(1));
+            appData.cbMaxEdit.String = sprintf('%.3f', range(2));
+        end
     else
+        % Static mode - use flow values directly (can be signed)
         colorData = flowVals;
+        % Static mode limits are handled by applyParameterSelection/updateColorRangeMode
+        % But if we just toggled the checkbox, we need to ensure limits are correct
+        updateColorRangeMode(fig, appData.usePercentile);
     end
     
     C_seg = [colorData'; colorData'; nanSep]; % 3 x n
@@ -2318,6 +2413,10 @@ function updateTimeFrame(fig, frame, isAutoUpdate)
         appData.timeSlider.Value = frame;
     end
     
+    % Save currentFrame to guidata BEFORE calling updateVectors
+    % so that updateVectors can access the correct frame
+    guidata(fig, appData);
+    
     % Update Color Data (Scatter) - Use ABSOLUTE Value for Color intensity (Speed/Magnitude)
     rawData = appData.flowPulsatile(:, frame);
     newData = abs(rawData);
@@ -2347,12 +2446,135 @@ function updateTimeFrame(fig, frame, isAutoUpdate)
         end
     end
     
-    % Update Vectors if visible
+    % Update Vectors if visible (now currentFrame is saved in guidata)
     updateVectors(fig);
     
     % Update cross-sections if sync is enabled
     if appData.syncImages && ~isempty(appData.selection.pointRow)
         updateCrossSections(fig, appData.selection.pointRow);
+    end
+    
+    guidata(fig, appData);
+end
+
+function exportVectorGIF(fig)
+    % Export animated GIF of vector visualization
+    appData = guidata(fig);
+    
+    % Check if vectors are visible
+    if ~isfield(appData.scatterAll.UserData, 'vectorShafts')
+        errordlg('Vectors are not initialized. Please enable vectors first.', 'Export Error');
+        return;
+    end
+    
+    vectorShafts = appData.scatterAll.UserData.vectorShafts;
+    if strcmp(vectorShafts.Visible, 'off')
+        errordlg('Vectors are not visible. Please enable vectors first.', 'Export Error');
+        return;
+    end
+    
+    % Prompt for save location
+    [filename, pathname] = uiputfile({'*.gif', 'GIF Files (*.gif)'}, ...
+                                      'Save Vector Animation GIF', ...
+                                      'vector_animation.gif');
+    if isequal(filename, 0) || isequal(pathname, 0)
+        return; % User cancelled
+    end
+    
+    gifPath = fullfile(pathname, filename);
+    
+    % Store original state
+    originalFrame = appData.currentFrame;
+    wasAnimating = appData.isAnimating;
+    
+    % Stop animation if running
+    if wasAnimating
+        toggleAnimation(fig, appData.playButton);
+        appData = guidata(fig);
+    end
+    
+    % Disable button during export
+    if isgraphics(appData.saveGifButton)
+        appData.saveGifButton.Enable = 'off';
+        appData.saveGifButton.String = 'Exporting...';
+    end
+    guidata(fig, appData);
+    drawnow;
+    
+    try
+        % Progress indication
+        hWait = waitbar(0, 'Exporting GIF frames...', 'Name', 'Export Progress');
+        
+        % Determine delay based on animation speed
+        delay = appData.speedSlider.Value; % Already in seconds
+        delayGif = max(0.01, min(0.1, delay)); % Clamp between 0.01 and 0.1 seconds
+        
+        % Loop through all frames
+        for frame = 1:appData.nframes
+            waitbar((frame-1)/appData.nframes, hWait, ...
+                    sprintf('Exporting frame %d/%d...', frame, appData.nframes));
+            
+            % Update to current frame
+            updateTimeFrame(fig, frame, false);
+            drawnow;
+            
+            % Capture the axes directly
+            frameImg = getframe(appData.axes);
+            frameData = frameImg.cdata;
+            
+            % Convert to indexed image for GIF (more efficient)
+            if frame == 1
+                % First frame - create colormap
+                [frameIdx, frameMap] = rgb2ind(frameData, 256);
+                % Write first frame
+                imwrite(frameIdx, frameMap, gifPath, 'gif', ...
+                        'DelayTime', delayGif, 'LoopCount', Inf);
+            else
+                % Subsequent frames - use same colormap
+                frameIdx = rgb2ind(frameData, frameMap);
+                % Append frame
+                imwrite(frameIdx, frameMap, gifPath, 'gif', ...
+                        'DelayTime', delayGif, 'WriteMode', 'append');
+            end
+        end
+        
+        close(hWait);
+        
+        % Restore original state
+        updateTimeFrame(fig, originalFrame, false);
+        if wasAnimating
+            toggleAnimation(fig, appData.playButton);
+        end
+        
+        % Re-enable button
+        appData = guidata(fig);
+        if isgraphics(appData.saveGifButton)
+            appData.saveGifButton.Enable = 'on';
+            appData.saveGifButton.String = 'Save GIF';
+        end
+        
+        % Success message
+        msgbox(sprintf('GIF exported successfully to:\n%s', gifPath), ...
+               'Export Complete', 'help');
+        
+    catch ME
+        % Restore original state on error
+        updateTimeFrame(fig, originalFrame, false);
+        if wasAnimating
+            toggleAnimation(fig, appData.playButton);
+        end
+        
+        appData = guidata(fig);
+        if isgraphics(appData.saveGifButton)
+            appData.saveGifButton.Enable = 'on';
+            appData.saveGifButton.String = 'Save GIF';
+        end
+        
+        if exist('hWait', 'var') && isgraphics(hWait)
+            close(hWait);
+        end
+        
+        errordlg(sprintf('Error exporting GIF:\n%s', ME.message), 'Export Error');
     end
     
     guidata(fig, appData);

@@ -30,7 +30,7 @@ for idx = 1:numel(patient_ids)
     eICAB_path = fullfile(base_path, 'eICAB', current_patient_id)
     % output_path = fullfile(base_path, 'RESULTS/QVTPlus', current_patient_id)
     % output_path = fullfile('/data_local/LabVF/PESA-Brain/RESULTS/QVTPlus_Refactored/', current_patient_id)
-    output_path = fullfile('/data_local/LabVF/PESA-Brain/DATA/Batch1_FP/QVTPlus/', current_patient_id)
+    output_path = fullfile('/data_local/LabVF/PESA-Brain/DATA/Batch1_FP/QVTPlus/', current_patient_id, '_FixedVel')
     mkdir(output_path);
     disp(['--------------------------------']);
 

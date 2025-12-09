@@ -141,14 +141,12 @@ vz = spm_read_vols(vzvol);
 v = zeros([a,c,b,3,d],'single');
 
 % velocities are in cm/s, convert to mm/s
-% NOTE: The sign changes below (negating vx and vz) are related to velocity encoding
-% and coordinate system conventions, not image orientation. These should remain
-% regardless of RAS orientation, as they account for the phase encoding direction
-% and the relationship between phase and velocity in 4D flow MRI.
-
-v(:,:,:,2,:)=-squeeze(vx(:,:,:,:))*10;
-v(:,:,:,1,:)=squeeze(vy(:,:,:,:))*10;
-v(:,:,:,3,:)=-squeeze(vz(:,:,:,:))*10;
+% v(:,:,:,2,:)=-squeeze(vx(:,:,:,:))*10;
+% v(:,:,:,1,:)=squeeze(vy(:,:,:,:))*10;
+% v(:,:,:,3,:)=-squeeze(vz(:,:,:,:))*10;
+v(:,:,:,1,:)=-squeeze(vy(:,:,:,:))*10; % R (Left 2 Right) -> RL (Right 2 Left)
+v(:,:,:,2,:)=-squeeze(vx(:,:,:,:))*10; % A (Posterior 2 Anterior) -> AP (Anterior 2 Posterior)
+v(:,:,:,3,:)=squeeze(vz(:,:,:,:))*10;  % S (Inferior 2 Superior) -> FH? (Not sure about this one) - Typically also IS
 
 vMean = mean(v,5);
 
