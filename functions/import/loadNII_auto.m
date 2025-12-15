@@ -146,7 +146,7 @@ v = zeros([a,c,b,3,d],'single');
 % v(:,:,:,3,:)=-squeeze(vz(:,:,:,:))*10;
 v(:,:,:,1,:)=-squeeze(vy(:,:,:,:))*10; % R (Left 2 Right) -> RL (Right 2 Left)
 v(:,:,:,2,:)=-squeeze(vx(:,:,:,:))*10; % A (Posterior 2 Anterior) -> AP (Anterior 2 Posterior)
-v(:,:,:,3,:)=squeeze(vz(:,:,:,:))*10;  % S (Inferior 2 Superior) -> FH? (Not sure about this one) - Typically also IS
+v(:,:,:,3,:)=squeeze(vz(:,:,:,:))*10;  % S (Inferior 2 Superior) = FH (Feet 2 Head)
 
 vMean = mean(v,5);
 
