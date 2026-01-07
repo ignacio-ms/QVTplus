@@ -71,11 +71,16 @@ function loc = extractSSSV(segment_ids, data_struct)
     segment_id = branchList(:,4);
 
     dims = size(data_struct.segment);
-    midY = dims(2)/3;
-    midZ = dims(3)/3;
+    minX = min(y); maxX = max(y); 
+    min_thrX = minX + 0.33 * (maxX - minX);
+    max_thrX = maxX - 0.33 * (maxX - minX);
+    midY = dims(2)/5;
+    midZ = dims(3)/4;
 
+    central_mask = x >= min_thrX & x <= max_thrX;
     posterior_mask = y < midY;
-    superior_mask  = z < midZ;
+    % superior_mask  = z < midZ;
+    superior_mask  = z > midZ;
 
     ss_mask = posterior_mask & superior_mask;
     subset = branchList(ss_mask, :);
@@ -124,17 +129,24 @@ function loc = extractLateralTSV(segment_ids, data_struct, side)
     minY = min(y); maxY = max(y);
     minZ = min(z); maxZ = max(z);
 
-    x_left_thresh  = minX + 0.5 * (maxX - minX);
-    x_right_thresh = maxX - 0.33 * (maxX - minX);
-    posterior_thresh = minY + 0.33 * (maxY - minY);
-    z_inferior_thresh = minZ + 0.60 * (maxZ - minZ);
+    % x_left_thresh  = minX + 0.33 * (maxX - minX);
+    % x_right_thresh = maxX - 0.33 * (maxX - minX);
+    % posterior_thresh = minY + 0.33 * (maxY - minY);
+    % z_inferior_thresh = minZ + 0.7 * (maxZ - minZ);
+    x_left_thresh  = minX + 0.33 * (maxX - minX);
+    x_right_thresh = maxX - 0.40 * (maxX - minX);
+    posterior_thresh = minY + 0.4 * (maxY - minY);
+    z_inferior_thresh = minZ + 0.25 * (maxZ - minZ);
 
-    inferior_mask = z >= z_inferior_thresh;
+    % inferior_mask = z >= z_inferior_thresh;
+    inferior_mask = z <= z_inferior_thresh;
     posterior_mask = y <= posterior_thresh;
 
     if strcmp(side, 'left')
+        % region_mask = x <= x_left_thresh & inferior_mask & posterior_mask;
         region_mask = x <= x_left_thresh & inferior_mask & posterior_mask;
     else
+        % region_mask = x >= x_right_thresh & inferior_mask & posterior_mask;
         region_mask = x >= x_right_thresh & inferior_mask & posterior_mask;
     end
 
@@ -168,10 +180,11 @@ function loc = extractLateralTSV(segment_ids, data_struct, side)
                     x_ok = p(:,1) >= x_right_thresh;
                 end
                 y_ok = p(:,2) <= posterior_thresh;
-                z_ok = p(:,3) >= z_inferior_thresh;
+                % z_ok = p(:,3) >= z_inferior_thresh;
+                z_ok = p(:,3) <= z_inferior_thresh;
                 region_mask = x_ok & y_ok & z_ok;
 
-                if mean(region_mask) >= 0.9
+                if mean(region_mask) >= 0.75
                     z_std = std(p(:,3));
                     len = size(p,1);
                     if z_std < z_std_thresh && len > best_length
@@ -197,18 +210,20 @@ function loc = extractSTRV(segment_ids, data_struct)
     minY = min(y); maxY = max(y);
     minZ = min(z); maxZ = max(z);
     posterior_thresh = minY + 0.5 * (maxY - minY);
-    superior_thresh  = minZ + 0.5 * (maxZ - minZ);
+    superior_thresh  = minZ + 0.33 * (maxZ - minZ);
 
     posterior_mask = y <= posterior_thresh;
-    superior_mask  = z <= superior_thresh;
+    % superior_mask  = z <= superior_thresh;
+    superior_mask  = z >= superior_thresh;
     straight_mask = posterior_mask & superior_mask;
 
     straight_subset = branchList(straight_mask, :);
     straight_segments = unique(straight_subset(:,4));
 
-    direction_threshold = 0.90;
-    min_points = 20;
-    expected = [0; 1; -1]; expected = expected / norm(expected);
+    direction_threshold = 0.8;
+    min_points = 15;
+    % expected = [0; 1; -1]; expected = expected / norm(expected);
+    expected = [0; 1; 1]; expected = expected / norm(expected);
     best_score = -Inf;
     straight_sinus_id = NaN;
 

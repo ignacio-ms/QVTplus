@@ -75,7 +75,30 @@ function saveVesselExcelData(vesselName, vesselNumber, pointOfInterest, data_str
     branchList = data_struct.branchList;
     Logical_branch = branchList(:, 4) == vesselNumber;
     indicesInBranch = find(Logical_branch);
-    selectedPointIndex = indicesInBranch(pointOfInterest);
+    
+    % pointOfInterest can be either:
+    % 1. A position index (1-based) within the branch (from processMainVessels)
+    % 2. A row index in the full branchList (from resolveLongVenousSegment)
+    % Check if pointOfInterest is a valid row index in the branch
+    if pointOfInterest <= length(branchList) && Logical_branch(pointOfInterest)
+        % It's a row index in the full branchList - convert to position index
+        selectedPointIndex = pointOfInterest;
+        pointPosition = find(indicesInBranch == pointOfInterest, 1);
+        if isempty(pointPosition)
+            pointPosition = ceil(length(indicesInBranch) / 2);
+            selectedPointIndex = indicesInBranch(pointPosition);
+        end
+    elseif pointOfInterest > 0 && pointOfInterest <= length(indicesInBranch)
+        % It's a position index within the branch
+        selectedPointIndex = indicesInBranch(pointOfInterest);
+        pointPosition = pointOfInterest;
+    else
+        % Invalid index - use the middle point as fallback
+        warning('Point of interest %d is invalid for branch %d (vessel %s). Using middle point instead.', ...
+                pointOfInterest, vesselNumber, vesselName);
+        pointPosition = ceil(length(indicesInBranch) / 2);
+        selectedPointIndex = indicesInBranch(pointPosition);
+    end
 
     % Define a 5-point range centered on the selected point
     index_range = max(selectedPointIndex - 2, 1):min(selectedPointIndex + 2, length(branchList));
@@ -101,10 +124,10 @@ function saveVesselExcelData(vesselName, vesselNumber, pointOfInterest, data_str
     flowPulsatile = data_struct.flowPulsatile_val(index_range, :);
     flowPulsatile = [flowPulsatile; mean(flowPulsatile, 1); std(flowPulsatile, 1)];
 
-    % Labels for time-averaged data
-    Labels = (pointOfInterest - 2):(pointOfInterest + 2);
+    % Labels for time-averaged data (use position index along vessel)
+    Labels = (pointPosition - 2):(pointPosition + 2);
     Labels(Labels < 1) = 0;
-    Labels(Labels > length(branchList)) = 0;
+    Labels(Labels > length(indicesInBranch)) = 0;
     Labels = [Labels, 0, 0]; % Adding placeholders for mean and std rows
 
     % Prepare Excel data for time-averaged data
@@ -133,7 +156,24 @@ function saveVesselImages(vesselName, vesselNumber, pointOfInterest, data_struct
     branchList = data_struct.branchList;
     Logical_branch = branchList(:, 4) == vesselNumber;
     indicesInBranch = find(Logical_branch);
-    selectedPointIndex = indicesInBranch(pointOfInterest);
+    
+    % pointOfInterest can be either:
+    % 1. A position index (1-based) within the branch (from processMainVessels)
+    % 2. A row index in the full branchList (from resolveLongVenousSegment)
+    % Check if pointOfInterest is a valid row index in the branch
+    if pointOfInterest <= length(branchList) && Logical_branch(pointOfInterest)
+        % It's a row index in the full branchList
+        selectedPointIndex = pointOfInterest;
+    elseif pointOfInterest > 0 && pointOfInterest <= length(indicesInBranch)
+        % It's a position index within the branch
+        selectedPointIndex = indicesInBranch(pointOfInterest);
+    else
+        % Invalid index - use the middle point as fallback
+        warning('Point of interest %d is invalid for branch %d (vessel %s). Using middle point instead.', ...
+                pointOfInterest, vesselNumber, vesselName);
+        midPoint = ceil(length(indicesInBranch) / 2);
+        selectedPointIndex = indicesInBranch(midPoint);
+    end
 
     % Define a 5-point range centered on the selected point
     index_range = max(selectedPointIndex - 2, 1):min(selectedPointIndex + 2, length(branchList));
