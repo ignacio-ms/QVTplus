@@ -80,9 +80,16 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
         end
         if strcmp(keyName, 'STRV')
             STRV = correspondenceDict.STRV;
-            STRV_LOC = find_LOCs('extractSTRV',STRV,data_struct);
+            % Check if SSSV was already assigned and get its segment ID
+            sssv_segment_id = [];
+            if isfield(LOCs, 'SSSV') && ~isempty(LOCs.SSSV)
+                sssv_segment_id = LOCs.SSSV(1);
+            end
+            STRV_LOC = find_LOCs('extractSTRV',STRV,data_struct, sssv_segment_id);
             try
-                LOCs.STRV = [STRV_LOC(1, 4), STRV_LOC(1, 5)];
+                if ~isempty(STRV_LOC)
+                    LOCs.STRV = [STRV_LOC(1, 4), STRV_LOC(1, 5)];
+                end
             catch
                 continue
             end
