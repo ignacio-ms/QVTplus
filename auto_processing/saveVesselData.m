@@ -57,17 +57,25 @@ function generateSummaryCenterline(LOCs, data_struct, output_path)
             summaryData{i, 7} = vesselLOC(1); % Branch Number
             % Compute other metrics
             rowIndex = find(data_struct.branchList(:, 4) == vesselLOC(1) & data_struct.branchList(:, 5) == vesselLOC(2));
-            summaryData{i, 4} = data_struct.maxVel_val(rowIndex) < 700; % Max Vel < 700
-            summaryData{i, 5} = data_struct.flowPerHeartCycle_val(rowIndex); % Mean Flow
-            summaryData{i, 6} = data_struct.PI_val(rowIndex); % Pulsatility Index
+            if ~isempty(rowIndex)
+                summaryData{i, 4} = data_struct.maxVel_val(rowIndex) < 700; % Max Vel < 700
+                summaryData{i, 5} = data_struct.flowPerHeartCycle_val(rowIndex); % Mean Flow
+                summaryData{i, 6} = data_struct.PI_val(rowIndex); % Pulsatility Index
+            else
+                summaryData{i, 4} = NaN;
+                summaryData{i, 5} = NaN;
+                summaryData{i, 6} = NaN;
+            end
         else
             summaryData(i, :) = {vesselLabel, NaN, NaN, NaN, NaN, NaN, NaN};
         end
     end
 
-    % Write to Excel
-    summaryTable = cell2table(summaryData, 'VariableNames', columnNames);
-    writetable(summaryTable, fullfile(output_path, 'SummaryParamTool.xls'), 'Sheet', 'Summary_Centerline');
+    % Write to Excel using xlwrite (consistent with rest of codebase)
+    % First write column headers
+    xlwrite(fullfile(output_path, 'SummaryParamTool.xls'), columnNames, 'Summary_Centerline', 'A1');
+    % Then write data starting from row 2
+    xlwrite(fullfile(output_path, 'SummaryParamTool.xls'), summaryData, 'Summary_Centerline', 'A2');
 end
 
 function saveVesselExcelData(vesselName, vesselNumber, pointOfInterest, data_struct, output_path)
@@ -103,6 +111,9 @@ function saveVesselExcelData(vesselName, vesselNumber, pointOfInterest, data_str
     % Define a 5-point range centered on the selected point
     index_range = max(selectedPointIndex - 2, 1):min(selectedPointIndex + 2, length(branchList));
     index_range(~Logical_branch(index_range)) = [];
+    
+    % Get actual number of points in the range
+    numPoints = length(index_range);
 
     % Time-averaged data calculations
     area = data_struct.area_val(index_range);
@@ -125,9 +136,18 @@ function saveVesselExcelData(vesselName, vesselNumber, pointOfInterest, data_str
     flowPulsatile = [flowPulsatile; mean(flowPulsatile, 1); std(flowPulsatile, 1)];
 
     % Labels for time-averaged data (use position index along vessel)
-    Labels = (pointPosition - 2):(pointPosition + 2);
-    Labels(Labels < 1) = 0;
-    Labels(Labels > length(indicesInBranch)) = 0;
+    % Create Labels to match the actual number of points in index_range
+    % Find the position indices for each point in index_range
+    Labels = zeros(1, numPoints);
+    for i = 1:numPoints
+        idx = index_range(i);
+        pos = find(indicesInBranch == idx, 1);
+        if ~isempty(pos)
+            Labels(i) = pos;
+        else
+            Labels(i) = 0; % Invalid position
+        end
+    end
     Labels = [Labels, 0, 0]; % Adding placeholders for mean and std rows
 
     % Prepare Excel data for time-averaged data

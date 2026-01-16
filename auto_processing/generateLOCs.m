@@ -32,20 +32,28 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
     if max_single_z > -inf
         ica_slice = max_single_z;
 
-        % Extract locations corresponding to the slice
-        LICA_LOC = find_LOCs('extractLocation', info_LICA, max_single_z, 3);
-        RICA_LOC = find_LOCs('extractLocation', info_RICA, max_single_z, 3);
-        BA_LOC = find_LOCs('extractLocation', info_BA, max_single_z, 3);
-
-        % Ensure minimum LOC Z offset of 3
-        LICA_LOC = find_LOCs('ensureMinZOffset', info_LICA, LICA_LOC, 4, 2); %si siguen apareciendo vessels cortados, subir el 4 a 5 o 6.
-        RICA_LOC = find_LOCs('ensureMinZOffset', info_RICA, RICA_LOC, 4, 2);
-        BA_LOC = find_LOCs('ensureMinZOffset', info_BA, BA_LOC, 4, 2);
+        % Extract candidate locations around the slice (±1 Z tolerance)
+        % This allows us to select from multiple candidates based on circularity
+        z_tolerance = 5;  % Allow ±1 Z slice for candidate selection
+        LICA_candidates = info_LICA(abs(info_LICA(:, 3) - max_single_z) <= z_tolerance, :);
+        RICA_candidates = info_RICA(abs(info_RICA(:, 3) - max_single_z) <= z_tolerance, :);
+        BA_candidates = info_BA(abs(info_BA(:, 3) - max_single_z) <= z_tolerance, :);
+        
+        % Select best LOC based on circularity
+        LICA_LOC = find_LOCs('selectLOCByCircularity', LICA_candidates, data_struct, info_LICA, 4, 2);
+        RICA_LOC = find_LOCs('selectLOCByCircularity', RICA_candidates, data_struct, info_RICA, 4, 2);
+        BA_LOC = find_LOCs('selectLOCByCircularity', BA_candidates, data_struct, info_BA, 4, 2);
 
         % Store the LOCs for ICA and BA
-        LOCs.LICA = [LICA_LOC(1, 4), LICA_LOC(1, 5)];
-        LOCs.RICA = [RICA_LOC(1, 4), RICA_LOC(1, 5)];
-        LOCs.BASI = [BA_LOC(1, 4), BA_LOC(1, 5)];
+        if ~isempty(LICA_LOC) && size(LICA_LOC, 2) >= 5
+            LOCs.LICA = [LICA_LOC(1, 4), LICA_LOC(1, 5)];
+        end
+        if ~isempty(RICA_LOC) && size(RICA_LOC, 2) >= 5
+            LOCs.RICA = [RICA_LOC(1, 4), RICA_LOC(1, 5)];
+        end
+        if ~isempty(BA_LOC) && size(BA_LOC, 2) >= 5
+            LOCs.BASI = [BA_LOC(1, 4), BA_LOC(1, 5)];
+        end
     end
     %% Step 2: Handle venous system
     vesselLabels = fieldnames(correspondenceDict);

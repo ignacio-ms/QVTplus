@@ -17,6 +17,10 @@ function varargout = find_LOCs(funcName, varargin)
             varargout{1} = extractRTSV(varargin{:});
         case 'extractSTRV'
             varargout{1} = extractSTRV(varargin{:});
+        case 'getCircularity'
+            varargout{1} = getCircularity(varargin{:});
+        case 'selectLOCByCircularity'
+            varargout{1} = selectLOCByCircularity(varargin{:});
         otherwise
             error('Unknown function name: %s', funcName);
     end
@@ -272,4 +276,204 @@ function loc = extractSTRV(segment_ids, data_struct, sssv_segment_id)
     center = mean(seg_points(:,1:3), 1);
     [~, idx] = min(sum((seg_points(:,1:3) - center).^2, 2));
     loc = seg_points(idx, :);
+end
+
+function circularity = getCircularity(data_struct, rowIdx)
+    % Get circularity value for a given branchList row index
+    % Returns diam_val (Rin^2/Rout^2) which is already computed
+    % Value of 1 = perfect circle, <1 = irregular shape
+    %
+    % Inputs:
+    %   data_struct - Data structure containing diam_val
+    %   rowIdx - Row index in branchList (1-based)
+    %
+    % Output:
+    %   circularity - Circularity metric (0 if invalid)
+    
+    if nargin < 2 || isempty(data_struct) || ~isfield(data_struct, 'diam_val')
+        circularity = 0;
+        return;
+    end
+    
+    if rowIdx > 0 && rowIdx <= length(data_struct.diam_val)
+        circularity = data_struct.diam_val(rowIdx);
+        % Handle invalid values
+        if ~isfinite(circularity) || circularity <= 0
+            circularity = 0;
+        end
+    else
+        circularity = 0;
+    end
+end
+
+function bestLOC = selectLOCByCircularity(candidates, data_struct, fullInfo, minOffset, topOffset)
+    % Select best LOC from candidates based on circularity and flow, avoiding extremes
+    % 
+    % Inputs:
+    %   candidates - Candidate points (rows from branchList, N x M matrix)
+    %   data_struct - Data structure with diam_val, flowPerHeartCycle_val, and branchList
+    %   fullInfo - Full branch info for ensureMinZOffset
+    %   minOffset, topOffset - Parameters for ensureMinZOffset
+    %
+    % Output:
+    %   bestLOC - Best candidate point (full row) or empty if no valid candidates
+    
+    if isempty(candidates)
+        bestLOC = [];
+        return;
+    end
+    
+    % Parameters for avoiding extremes (exclude first/last 20% of centerline)
+    extremeThreshold = 0.2;
+    
+    % Pre-compute segment information to avoid extremes
+    segmentInfo = struct();
+    for i = 1:size(candidates, 1)
+        candidate = candidates(i, :);
+        if size(candidate, 2) < 5
+            continue;
+        end
+        segID = candidate(4);
+        if ~isfield(segmentInfo, sprintf('seg_%d', segID))
+            % Get all points in this segment
+            segMask = data_struct.branchList(:, 4) == segID;
+            segClIndices = data_struct.branchList(segMask, 5);
+            if ~isempty(segClIndices)
+                minClIdx = min(segClIndices);
+                maxClIdx = max(segClIndices);
+                segLength = maxClIdx - minClIdx + 1;
+                extremeRange = round(segLength * extremeThreshold);
+                segmentInfo.(sprintf('seg_%d', segID)) = struct(...
+                    'minClIdx', minClIdx, ...
+                    'maxClIdx', maxClIdx, ...
+                    'minValidClIdx', minClIdx + extremeRange, ...
+                    'maxValidClIdx', maxClIdx - extremeRange);
+            end
+        end
+    end
+    
+    % Get flow values for normalization
+    validCandidates = [];
+    flowValues = [];
+    circularityValues = [];
+    isExtremeFlags = [];
+    
+    for i = 1:size(candidates, 1)
+        candidate = candidates(i, :);
+        
+        if size(candidate, 2) < 5
+            continue; % Invalid candidate row
+        end
+        
+        % Apply ensureMinZOffset constraint
+        candidate = find_LOCs('ensureMinZOffset', fullInfo, candidate, minOffset, topOffset);
+        
+        % Find row index in branchList
+        segID = candidate(4);
+        clIdx = candidate(5);
+        rowIdx = find(data_struct.branchList(:,4) == segID & ...
+                     data_struct.branchList(:,5) == clIdx, 1);
+        
+        if isempty(rowIdx)
+            continue;
+        end
+        
+        % Check if candidate is at extreme of centerline
+        isExtreme = false;
+        segKey = sprintf('seg_%d', segID);
+        if isfield(segmentInfo, segKey)
+            segInfo = segmentInfo.(segKey);
+            if clIdx < segInfo.minValidClIdx || clIdx > segInfo.maxValidClIdx
+                isExtreme = true;
+            end
+        end
+        
+        % Get circularity
+        circularity = getCircularity(data_struct, rowIdx);
+        
+        % Get flow value
+        flow = 0;
+        if isfield(data_struct, 'flowPerHeartCycle_val') && ...
+           rowIdx > 0 && rowIdx <= length(data_struct.flowPerHeartCycle_val)
+            flow = data_struct.flowPerHeartCycle_val(rowIdx);
+            if ~isfinite(flow) || flow < 0
+                flow = 0;
+            end
+        end
+        
+        % Store candidate information
+        validCandidates = [validCandidates; candidate];
+        circularityValues = [circularityValues; circularity];
+        flowValues = [flowValues; flow];
+        isExtremeFlags = [isExtremeFlags; isExtreme];
+    end
+    
+    if isempty(validCandidates)
+        % Fallback to first candidate
+        if ~isempty(candidates)
+            bestLOC = candidates(1, :);
+            if size(bestLOC, 2) >= 5
+                bestLOC = find_LOCs('ensureMinZOffset', fullInfo, bestLOC, minOffset, topOffset);
+            end
+        else
+            bestLOC = [];
+        end
+        return;
+    end
+    
+    % Normalize circularity and flow values for scoring
+    % Circularity: higher is better (already normalized 0-1 typically)
+    validCircularity = circularityValues(isfinite(circularityValues) & circularityValues > 0);
+    if ~isempty(validCircularity)
+        maxCircularity = max(validCircularity);
+        if maxCircularity > 0
+            normalizedCircularity = circularityValues / maxCircularity;
+        else
+            normalizedCircularity = zeros(size(circularityValues));
+        end
+    else
+        normalizedCircularity = zeros(size(circularityValues));
+    end
+    
+    % Flow: higher is better, normalize to 0-1
+    validFlow = flowValues(isfinite(flowValues) & flowValues > 0);
+    if ~isempty(validFlow)
+        maxFlow = max(validFlow);
+        if maxFlow > 0
+            normalizedFlow = flowValues / maxFlow;
+        else
+            normalizedFlow = zeros(size(flowValues));
+        end
+    else
+        normalizedFlow = zeros(size(flowValues));
+    end
+    
+    % Combined score: weighted combination of circularity and flow
+    % Penalize extreme positions
+    % Weights: 60% circularity, 40% flow (adjustable)
+    circularityWeight = 0.6;
+    flowWeight = 0.4;
+    
+    combinedScore = circularityWeight * normalizedCircularity + flowWeight * normalizedFlow;
+    
+    % Apply penalty for extreme positions (reduce score by 50%)
+    extremePenalty = 0.5;
+    % combinedScore(isExtremeFlags) = combinedScore(isExtremeFlags) * extremePenalty;
+    for i = 1:length(isExtremeFlags)
+        if isExtremeFlags(i)
+            combinedScore(i) = combinedScore(i) * extremePenalty;
+        end
+    end
+    
+    % Find best candidate
+    [~, bestIdx] = max(combinedScore);
+    bestLOC = validCandidates(bestIdx, :);
+    
+    % Final fallback if still no valid candidate
+    if isempty(bestLOC) && ~isempty(candidates)
+        bestLOC = candidates(1, :);
+        if size(bestLOC, 2) >= 5
+            bestLOC = find_LOCs('ensureMinZOffset', fullInfo, bestLOC, minOffset, topOffset);
+        end
+    end
 end

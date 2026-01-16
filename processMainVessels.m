@@ -2,17 +2,54 @@ function locEntry = processMainVessels(keyName, correspondenceDict, data_struct,
     % Initialize parameters
     if length(correspondenceDict.(keyName)) == 1
         bestSegment = correspondenceDict.(keyName);
-        segmentLength = sum(data_struct.branchList(:, 4) == bestSegment);
-    
-        if segmentLength == 5
-            LOC = 3;
-        elseif segmentLength == 6
-            LOC = 4;
+        segmentMask = data_struct.branchList(:, 4) == bestSegment;
+        segmentIndices = find(segmentMask);
+        segmentLength = length(segmentIndices);
+        
+        % Use circularity-based selection if available
+        if segmentLength >= 5 && isfield(data_struct, 'diam_val')
+            % Consider points in the middle portion (avoid ends)
+            startIdx = max(1, round(segmentLength * 0.25));
+            endIdx = min(segmentLength, round(segmentLength * 0.75));
+            candidateRange = startIdx:endIdx;
+            
+            bestCircularity = -inf;
+            bestLOCIdx = [];
+            
+            for idx = candidateRange
+                rowIdx = segmentIndices(idx);
+                circularity = find_LOCs('getCircularity', data_struct, rowIdx);
+                
+                if circularity > bestCircularity
+                    bestCircularity = circularity;
+                    bestLOCIdx = idx;
+                end
+            end
+            
+            if ~isempty(bestLOCIdx)
+                locEntry = [bestSegment, bestLOCIdx];
+            else
+                % Fallback
+                if segmentLength == 5
+                    LOC = 3;
+                elseif segmentLength == 6
+                    LOC = 4;
+                else
+                    LOC = 5;
+                end
+                locEntry = [bestSegment, LOC];
+            end
         else
-            LOC = 5;
+            % Fallback to original logic
+            if segmentLength == 5
+                LOC = 3;
+            elseif segmentLength == 6
+                LOC = 4;
+            else
+                LOC = 5;
+            end
+            locEntry = [bestSegment, LOC];
         end
-    
-        locEntry = [bestSegment, LOC];
         return;
     end
 
@@ -105,17 +142,56 @@ function locEntry = processMainVessels(keyName, correspondenceDict, data_struct,
 
     % Assign final segment or default to NaN
     if ~isempty(bestSegment)
-        segmentLength = sum(data_struct.branchList(:, 4) == bestSegment);
-    
-        if segmentLength == 5
-            LOC = 3;
-        elseif segmentLength == 6
-            LOC = 4;
+        % Get all points in the selected segment
+        segmentMask = data_struct.branchList(:, 4) == bestSegment;
+        segmentIndices = find(segmentMask);
+        segmentLength = length(segmentIndices);
+        
+        % Evaluate circularity for candidate points along the segment
+        if segmentLength >= 5 && isfield(data_struct, 'diam_val')
+            % Consider points in the middle portion of the segment (avoid ends)
+            % Evaluate middle 60% of segment (avoid first/last 20%)
+            startIdx = max(1, round(segmentLength * 0.25));
+            endIdx = min(segmentLength, round(segmentLength * 0.75));
+            candidateRange = startIdx:endIdx;
+            
+            bestCircularity = -inf;
+            bestLOCIdx = [];
+            
+            for idx = candidateRange
+                rowIdx = segmentIndices(idx);
+                circularity = find_LOCs('getCircularity', data_struct, rowIdx);
+                
+                if circularity > bestCircularity
+                    bestCircularity = circularity;
+                    bestLOCIdx = idx;  % Position index within branch
+                end
+            end
+            
+            if ~isempty(bestLOCIdx)
+                locEntry = [bestSegment, bestLOCIdx];
+            else
+                % Fallback to original logic if no valid candidates
+                if segmentLength == 5
+                    LOC = 3;
+                elseif segmentLength == 6
+                    LOC = 4;
+                else
+                    LOC = 5;
+                end
+                locEntry = [bestSegment, LOC];
+            end
         else
-            LOC = 5;
+            % Very short segment or no circularity data, use original logic
+            if segmentLength == 5
+                LOC = 3;
+            elseif segmentLength == 6
+                LOC = 4;
+            else
+                LOC = 5;
+            end
+            locEntry = [bestSegment, LOC];
         end
-    
-        locEntry = [bestSegment, LOC];
     else
         locEntry = [NaN, NaN];
     end

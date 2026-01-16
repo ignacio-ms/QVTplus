@@ -41,7 +41,7 @@ function paramMap_GUI(outputDir, update_measurements)
     
     % Parse update_measurements flag
     if nargin < 2 || isempty(update_measurements)
-        update_measurements = true;
+        update_measurements = false;
     else
         update_measurements = logical(update_measurements);
     end
