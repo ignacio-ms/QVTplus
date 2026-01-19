@@ -124,9 +124,27 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
         elseif ismember(keyName, {'LPCA', 'RPCA', 'LMCA', 'RMCA', 'RACA', 'LACA'})
             % Process main vessels
             LOCs.(keyName) = processMainVessels(keyName, correspondenceDict, data_struct, multiQVT);
-        elseif strcmp(keyName, 'COMM')
-            % Special case for COMM vessels
-            LOCs.(keyName) = unique(correspondenceDict.COMM);
+        elseif strcmp(keyName, 'RCOMM') || strcmp(keyName, 'LCOMM')
+            % Process RCOMM/LCOMM vessels (split from COMM based on RAS orientation)
+            % Use similar logic to main vessels: find best LOC in the segment
+            % Handle missing vessels like venous vessels (use try-catch and check validity)
+            if isfield(correspondenceDict, keyName) && ~isempty(correspondenceDict.(keyName))
+                try
+                    locResult = processMainVessels(keyName, correspondenceDict, data_struct, multiQVT);
+                    % Check if result is valid (not NaN and has 2 elements)
+                    if ~isempty(locResult) && numel(locResult) == 2 && ...
+                       ~isnan(locResult(1)) && ~isnan(locResult(2)) && ...
+                       isfinite(locResult(1)) && isfinite(locResult(2))
+                        LOCs.(keyName) = locResult;
+                        disp('RCOMM/LCOMM vessel found and added to LOCs');
+                    end
+                    % If invalid, don't add to LOCs (vessel doesn't exist or couldn't be found)
+                catch
+                    % If extraction fails, skip this vessel (like venous vessels)
+                    disp('RCOMM/LCOMM vessel not found and skipped');
+                    continue
+                end
+            end
         end
     end
 

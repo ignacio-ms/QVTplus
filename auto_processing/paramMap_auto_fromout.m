@@ -122,6 +122,35 @@ function paramMap_auto_fromout(outputDir, varargin)
         try
             [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDict, multiQVT);
             disp('LOCs regenerated successfully.');
+            
+            % Debug: Display which LOCs were generated
+            locKeys = fieldnames(LOCs);
+            disp(['Generated LOCs for vessels: ' strjoin(locKeys', ', ')]);
+            for i = 1:numel(locKeys)
+                key = locKeys{i};
+                if isfield(LOCs, key) && ~isempty(LOCs.(key))
+                    locVal = LOCs.(key);
+                    if numel(locVal) >= 2
+                        disp(['  ' key ': segment=' num2str(locVal(1)) ', centerline=' num2str(locVal(2))]);
+                    else
+                        disp(['  ' key ': invalid LOC (numel=' num2str(numel(locVal)) ')']);
+                    end
+                end
+            end
+            
+            % Update the saved .mat file with new LOCs and correspondenceDict
+            try
+                savedData = load(matFile);
+                % Add LOCs and correspondenceDict to saved data
+                savedData.LOCs = LOCs;
+                savedData.correspondenceDict = correspondenceDict;
+                % Save back to .mat file
+                save(matFile, '-struct', 'savedData', '-v7.3');
+                disp('Updated qvtData_ISOfix_*.mat file with new LOCs and correspondenceDict.');
+            catch ME_save
+                warning('paramMap_auto_fromout:SaveLOCsFailed', ...
+                        'Failed to save LOCs to .mat file: %s', ME_save.message);
+            end
         catch ME
             warning('paramMap_auto_fromout:LOCsFailed', ...
                     'Failed to regenerate LOCs: %s', ME.message);
@@ -163,7 +192,8 @@ function paramMap_auto_fromout(outputDir, varargin)
             
             % Update the saved .mat file
             savedData = load(matFile);
-            savedData.data_struct.timeMIPcrossectionTR = timeMIPcrossectionTR;
+            data_struct.timeMIPcrossectionTR = timeMIPcrossectionTR;
+            savedData.data_struct = data_struct;
             save(matFile, '-struct', 'savedData', '-v7.3');
             disp('Time-resolved CD data saved successfully.');
         catch ME
@@ -226,6 +256,26 @@ function paramMap_auto_fromout(outputDir, varargin)
             end
         end
     end
+    
+            % Update the .mat file with LOCs and correspondenceDict if they were regenerated
+            % (even if LOCs step wasn't run explicitly, they might have been regenerated for saveVesselData or generateQVTplus)
+            if ismember('LOCs', stepsToRun) || ismember('saveVesselData', stepsToRun) || ismember('generateQVTplus', stepsToRun)
+                try
+                    savedData = load(matFile);
+                    % Update LOCs and correspondenceDict if they were regenerated
+                    if ~isempty(LOCs)
+                        savedData.LOCs = LOCs;
+                    end
+                    % correspondenceDict is always available after generateCorrespondenceDict
+                    savedData.correspondenceDict = correspondenceDict;
+                    % Save back to .mat file
+                    save(matFile, '-struct', 'savedData', '-v7.3');
+                    disp('Updated qvtData_ISOfix_*.mat file with LOCs and correspondenceDict.');
+                catch ME_save
+                    warning('paramMap_auto_fromout:SaveMatFailed', ...
+                            'Failed to save LOCs/correspondenceDict to .mat file: %s', ME_save.message);
+                end
+            end
     
     disp(['================================']);
     disp(['Processing completed.']);

@@ -29,6 +29,20 @@ width = r*InterpVals.*2+1; %width of plane in pixels
 [x_full,y_full,z_full,x,y,z,Tangent_V,Planes] = create_planes(branchList,r,single(matrix),InterpVals,width);
 segments=length(branchList); %number of segments
 
+% %% Correct Tangent_V direction using actual velocity
+% % Interpolate mean velocity at centerline points to determine flow direction
+% % This ensures Tangent_V points in the direction of positive flow
+% coords = branchList(:, 1:3);
+% % Interpolate velocity components at centerline coordinates
+% vx_center = interp3(y, x, z, vMean(:,:,:,1), coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+% vy_center = interp3(y, x, z, vMean(:,:,:,2), coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+% vz_center = interp3(y, x, z, vMean(:,:,:,3), coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+% % Project velocity onto Tangent_V to check direction
+% vel_projection = vx_center.*Tangent_V(:,1) + vy_center.*Tangent_V(:,2) + vz_center.*Tangent_V(:,3);
+% % Flip Tangent_V where projection is negative
+% flip_mask = vel_projection < 0;
+% Tangent_V(flip_mask, :) = -Tangent_V(flip_mask, :);
+
 %% Calculate out of plane length distortion
 xyNorm=[0 0 1];
 pixelSpace=zeros([segments,1]);
@@ -163,11 +177,12 @@ for j = 1:nframes
     VplanesAlly(:,:,j) = v2(:,idCOL);
     VplanesAllz(:,:,j) = v3(:,idCOL);
     % Sliding Threshold
-    vTimeFrame = segmentFull.*(0.1*(v1 + v2 + v3)); %masked velocity (cm/s)
+    vTimeFrame = abs(segmentFull.*(0.1*(v1 + v2 + v3))); %masked velocity (cm/s)
     %size(vTimeFrame)
     %SegPlanes(:,:,j)=vTimeFrame;
-    vTimeFramerowMean = sum(vTimeFrame,2) ./ sum(vTimeFrame~=0,2); %mean vel
-    flowPulsatile_val(:,j) = vTimeFramerowMean.*area_val; %TR flow (ml/s)
+    vTimeFramerowMean = sum(vTimeFrame,2) ./ sum(vTimeFrame~=0,2); %mean vel (already absolute from vTimeFrame)
+    flowPulsatile_val(:,j) = abs(vTimeFramerowMean.*area_val); %TR flow (ml/s) - ensure absolute value
+    % Taking absolute value ensures derived parameters (PI, RI, etc.) use positive values
     maxVelFrame(:,j) = max(vTimeFrame,[],2); %max vel. each frame (cm/s)
     velPulsatile_val(:,j) = vTimeFramerowMean;%mean vel. each frame (cm/s)  
 end 

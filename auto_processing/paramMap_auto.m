@@ -225,8 +225,9 @@ function processSinglePatient(path_to_data, eICAB_path, output_path, use_eicab_w
             matFile = fullfile(output_path, matInfo(newestIdx).name);
             % Load existing data
             savedData = load(matFile);
-            % Update data_struct
-            savedData.data_struct.timeMIPcrossectionTR = timeMIPcrossectionTR;
+            % Update data_struct with time-resolved CD
+            data_struct.timeMIPcrossectionTR = timeMIPcrossectionTR;
+            savedData.data_struct = data_struct;
             % Save back
             save(matFile, '-struct', 'savedData', '-v7.3');
             disp('Time-resolved CD data saved successfully.');

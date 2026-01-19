@@ -114,10 +114,64 @@ function [correspondenceDict, multiQVT] = generateCorrespondenceDict(folderPath,
         correspondenceDict.RPC2 = segments{4};
     end
 
+    % Split COMM into RCOMM and LCOMM based on RAS orientation (QVT multisegmentation mask)
+    % Use QVT mask (from 4DFlow Complex Difference) instead of eICAB (TOF-based)
+    % RAS orientation: X dimension (RL) starts from left (x=1) and ends on right (x=matrix(1))
+    % RCOMM = x > x_mid (right side), LCOMM = x < x_mid (left side)
     if isfield(correspondenceDict, 'COMM')
-        correspondenceDict.COMM = unique(correspondenceDict.COMM);
-    else
-        correspondenceDict.COMM = [];
+        commSegments = unique(correspondenceDict.COMM);
+        if ~isempty(commSegments)
+            % Get image dimensions from multiQVT (QVT multisegmentation mask)
+            x_size = size(multiQVT, 1);
+            x_mid = x_size / 2;
+            
+            % Initialize RCOMM and LCOMM
+            correspondenceDict.RCOMM = [];
+            correspondenceDict.LCOMM = [];
+            
+            % Split COMM segments based on centerline positions in branchList
+            for segID = commSegments(:)'
+                % Get all centerline points for this segment
+                segMask = data_struct.branchList(:, 4) == segID;
+                if ~any(segMask)
+                    continue;
+                end
+                
+                % Get x-coordinates (RAS orientation: column 1 of branchList)
+                x_coords = data_struct.branchList(segMask, 1);
+                
+                % Determine if segment is predominantly R or L
+                % Count points on each side
+                n_right = sum(x_coords > x_mid);
+                n_left = sum(x_coords <= x_mid);
+                
+                % Assign to RCOMM or LCOMM based on majority
+                % If equal or unclear, use mean position
+                if n_right > n_left
+                    correspondenceDict.RCOMM = [correspondenceDict.RCOMM; segID];
+                elseif n_left > n_right
+                    correspondenceDict.LCOMM = [correspondenceDict.LCOMM; segID];
+                else
+                    % Tie: use mean x-coordinate
+                    mean_x = mean(x_coords);
+                    if mean_x > x_mid
+                        correspondenceDict.RCOMM = [correspondenceDict.RCOMM; segID];
+                    else
+                        correspondenceDict.LCOMM = [correspondenceDict.LCOMM; segID];
+                    end
+                end
+            end
+            
+            % Remove duplicates
+            correspondenceDict.RCOMM = unique(correspondenceDict.RCOMM);
+            correspondenceDict.LCOMM = unique(correspondenceDict.LCOMM);
+            
+            % Remove old COMM field (now split into RCOMM and LCOMM)
+            correspondenceDict = rmfield(correspondenceDict, 'COMM');
+        else
+            % No COMM segments found, remove empty field
+            correspondenceDict = rmfield(correspondenceDict, 'COMM');
+        end
     end
 
     % Remove unused good_lab keys

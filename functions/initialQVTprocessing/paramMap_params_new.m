@@ -60,6 +60,25 @@ V2 = V2./N;
 V3 = cross(Tangent_V,V2); %Third vector that is normalized
 % V3,V2,Tangent_V are all orthogonal (i.e. dot( V3(1,:),Tangent_V(1,:) )=0)
 
+%% Correct Tangent_V direction using actual velocity
+% Interpolate mean velocity at centerline points to determine flow direction
+% This ensures Tangent_V points in the direction of positive flow
+x = 1:matrix(1);
+y = 1:matrix(2);
+z = 1:matrix(3);
+coords = branchList(:, 1:3);
+% Interpolate velocity components at centerline coordinates
+vx_center = interp3(y, x, z, vMean(:,:,:,1), coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+vy_center = interp3(y, x, z, vMean(:,:,:,2), coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+vz_center = interp3(y, x, z, vMean(:,:,:,3), coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+% Project velocity onto Tangent_V to check direction
+vel_projection = vx_center.*Tangent_V(:,1) + vy_center.*Tangent_V(:,2) + vz_center.*Tangent_V(:,3);
+% Flip Tangent_V (and V2, V3) where projection is negative
+flip_mask = vel_projection < 0;
+Tangent_V(flip_mask, :) = -Tangent_V(flip_mask, :);
+V2(flip_mask, :) = -V2(flip_mask, :);
+V3(flip_mask, :) = -V3(flip_mask, :);
+
 %% Interpolate
 % Get the full tangent plane for all the points
 r = 10; %size of plane to select from non interpolated data is r*2+1

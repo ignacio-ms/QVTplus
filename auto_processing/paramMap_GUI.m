@@ -798,11 +798,12 @@ end
 function names = buildDisplayNames(keys)
     pretty = containers.Map( ...
         {'LICA','RICA','BASI','LMCA','RMCA','LACA','RACA', ...
-         'LPCA','RPCA','SSSV','LTSV','RTSV','STRV','COMM'}, ...
+         'LPCA','RPCA','SSSV','LTSV','RTSV','STRV','RCOMM','LCOMM'}, ...
         {'Left ICA','Right ICA','Basilar', ...
          'Left MCA','Right MCA','Left ACA','Right ACA', ...
          'Left PCA','Right PCA','Superior Sagittal Sinus', ...
-         'Left Transverse Sinus','Right Transverse Sinus','Straight Sinus','Communicating'} ...
+         'Left Transverse Sinus','Right Transverse Sinus','Straight Sinus', ...
+         'Right Communicating','Left Communicating'} ...
     );
     names = cell(size(keys));
     for i = 1:numel(keys)
@@ -825,10 +826,11 @@ function [surfacePatches, scatterAll, scatterSel] = plotCenterlines(ax, data_str
     % Define distinct colors for each vessel type
     vesselColors = containers.Map(...
         {'LICA', 'RICA', 'BASI', 'LMCA', 'RMCA', 'LACA', 'RACA', ...
-         'LPCA', 'RPCA', 'SSSV', 'LTSV', 'RTSV', 'STRV', 'COMM'}, ...
+         'LPCA', 'RPCA', 'SSSV', 'LTSV', 'RTSV', 'STRV', 'RCOMM', 'LCOMM'}, ...
         {[1 0.2 0.2], [0.2 0.2 1], [0.2 1 0.2], [1 0.6 0.2], [0.6 0.2 1], ...
          [1 0.8 0.2], [0.8 0.2 1], [0.2 1 0.8], [0.2 0.8 1], ...
-         [1 0.4 0.6], [0.4 1 0.6], [0.6 0.4 1], [0.8 0.8 0.2], [0.5 0.5 0.5]});
+         [1 0.4 0.6], [0.4 1 0.6], [0.6 0.4 1], [0.8 0.8 0.2], ...
+         [0.5 0.3 0.3], [0.3 0.5 0.3]});
 
     % Use multilabel volume if available, otherwise use binary segment
     if ~isempty(multiQVTvol) && ~all(multiQVTvol(:) == 0)
@@ -1185,8 +1187,6 @@ function updateSelection(fig, selectionIdx, vesselNames, locKeys)
     segments = [];
     if isfield(correspondenceDict, key)
         segments = unique(correspondenceDict.(key));
-    elseif strcmpi(key, 'COMM') && isfield(correspondenceDict, 'COMM')
-        segments = unique(correspondenceDict.COMM);
     end
 
     segMask = ismember(branchList(:,4), segments);
@@ -1826,6 +1826,18 @@ function updatePlaneOverlay(fig, rowIdx)
         if nNorm > 0
             normalVec = normalVec / nNorm;
         end
+        
+        % Align normal vector with flow direction to avoid false negative flow values
+        % Check flow sign: if negative, flip the normal vector
+        if isfield(appData, 'flowPerHeartCycle_val') && rowIdx <= numel(appData.flowPerHeartCycle_val)
+            flowVal = appData.flowPerHeartCycle_val(rowIdx);
+            if flowVal < 0
+                % Flow is negative, meaning velocity opposes the tangent
+                % Flip the normal to point in the direction of positive flow
+                normalVec = -normalVec;
+            end
+        end
+        
         edgeVecs = planeCoords([2 3 4 1],:) - planeCoords([1 2 3 4],:);
         edgeLens = vecnorm(edgeVecs, 2, 2);
         planeScale = mean(edgeLens);

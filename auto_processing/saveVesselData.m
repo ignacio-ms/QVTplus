@@ -5,13 +5,22 @@ function saveVesselData(LOCs, data_struct, output_path)
     for i = 1:numel(fields)
         vesselName = fields{i};
 
-        % TODO: estamos saltando la COMM porque habria que tratarla distinto para
-        % seleccionar el punto de interes (o seleccionar todos sus puntos para la media)
+        % RCOMM and LCOMM are now handled separately (split from COMM based on RAS orientation)
+        % Skip old 'COMM' if it exists (should not exist after splitting, but check for compatibility)
         if strcmp(vesselName, 'COMM')
             continue;
         end
 
         vesselInfo = LOCs.(vesselName);
+        
+        % Check if vessel info is valid (not NaN, not empty)
+        if isempty(vesselInfo) || numel(vesselInfo) < 2 || ...
+           isnan(vesselInfo(1)) || isnan(vesselInfo(2)) || ...
+           ~isfinite(vesselInfo(1)) || ~isfinite(vesselInfo(2))
+            % Skip invalid vessels (e.g., missing RCOMM/LCOMM)
+            continue;
+        end
+        
         vesselNumber = vesselInfo(1);
         pointOfInterest = vesselInfo(2);
 
@@ -33,6 +42,8 @@ function generateSummaryCenterline(LOCs, data_struct, output_path)
         'Right PCA', 'RPCA';
         'Left ACA', 'LACA';
         'Right ACA', 'RACA';
+        'Right Communicating', 'RCOMM';
+        'Left Communicating', 'LCOMM';
         'Straight Sinus', 'STRV';
         'Sagital Sinus', 'SSSV';
         'Left Transverse', 'LTSV';
