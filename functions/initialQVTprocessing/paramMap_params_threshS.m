@@ -177,7 +177,7 @@ for j = 1:nframes
     VplanesAlly(:,:,j) = v2(:,idCOL);
     VplanesAllz(:,:,j) = v3(:,idCOL);
     % Sliding Threshold
-    vTimeFrame = abs(segmentFull.*(0.1*(v1 + v2 + v3))); %masked velocity (cm/s)
+    vTimeFrame = segmentFull.*(0.1*(v1 + v2 + v3)); %masked velocity (cm/s)
     %size(vTimeFrame)
     %SegPlanes(:,:,j)=vTimeFrame;
     vTimeFramerowMean = sum(vTimeFrame,2) ./ sum(vTimeFrame~=0,2); %mean vel (already absolute from vTimeFrame)

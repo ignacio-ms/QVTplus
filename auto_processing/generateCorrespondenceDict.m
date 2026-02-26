@@ -17,6 +17,8 @@ function [correspondenceDict, multiQVT] = generateCorrespondenceDict(folderPath,
     labels = data_struct.branchList(:, 4);
 
     % Find all vessel segments from QVT that belong to each of the eICAB labels
+    nOutOfBounds = 0;
+    nZeroLabel = 0;
     for i = 1:size(positions, 1)
         x = round(positions(i, 1));
         y = round(positions(i, 2));
@@ -26,12 +28,13 @@ function [correspondenceDict, multiQVT] = generateCorrespondenceDict(folderPath,
            x <= size(multiQVT, 1) && y <= size(multiQVT, 2) && z <= size(multiQVT, 3)
             good_lab = multiQVT(x, y, z);
         else
-            % Skip if the position is out of bounds in multiQVT
+            nOutOfBounds = nOutOfBounds + 1;
             continue;
         end
 
         if good_lab == 0
-            continue; % Skip if no label found
+            nZeroLabel = nZeroLabel + 1;
+            continue;
         end
 
         fieldName = sprintf('good_lab_%d', good_lab);
@@ -40,6 +43,7 @@ function [correspondenceDict, multiQVT] = generateCorrespondenceDict(folderPath,
         end
         correspondenceDict.(fieldName) = [correspondenceDict.(fieldName); labels(i)];
     end
+    fprintf('[generateCorrespondenceDict] Centerline points: out-of-bounds in multilabel = %d, label==0 = %d\n', nOutOfBounds, nZeroLabel);
 
     % Resolve multiple QVT labels mapped to the same eICAB label
     labelOccurrences = correspondence_funcs('buildLabelOccurrences', correspondenceDict);
@@ -185,5 +189,19 @@ function [correspondenceDict, multiQVT] = generateCorrespondenceDict(folderPath,
         if isempty(correspondenceDict.(fieldNames{i}))
             correspondenceDict = rmfield(correspondenceDict, fieldNames{i});
         end
+    end
+
+    % Debug: which vessel keys are present and segment counts
+    expectedKeys = {'LICA', 'RICA', 'BASI', 'LMCA', 'RMCA', 'LACA', 'RACA', 'LPCA', 'RPCA', 'RCOMM', 'LCOMM', 'SSSV', 'LTSV', 'RTSV', 'STRV'};
+    presentKeys = fieldnames(correspondenceDict);
+    fprintf('[generateCorrespondenceDict] Vessels in dict: %s\n', strjoin(presentKeys, ', '));
+    missing = setdiff(expectedKeys, presentKeys);
+    if ~isempty(missing)
+        fprintf('[generateCorrespondenceDict] Missing keys (no centerline points in multilabel): %s\n', strjoin(missing, ', '));
+    end
+    for k = 1:numel(presentKeys)
+        key = presentKeys{k};
+        segs = unique(correspondenceDict.(key));
+        fprintf('[generateCorrespondenceDict]   %s -> segment IDs %s (%d unique)\n', key, mat2str(segs(:)'), numel(segs));
     end
 end

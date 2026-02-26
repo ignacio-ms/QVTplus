@@ -50,6 +50,12 @@ function generateSummaryCenterline(LOCs, data_struct, output_path)
         'Right Transverse', 'RTSV'
     };
 
+    nBranchList = size(data_struct.branchList, 1);
+    nFlow = numel(data_struct.flowPerHeartCycle_val);
+    nPI = numel(data_struct.PI_val);
+    fprintf('[generateSummaryCenterline] branchList rows = %d, flowPerHeartCycle_val length = %d, PI_val length = %d\n', ...
+        nBranchList, nFlow, nPI);
+
     % Initialize the table
     summaryData = cell(size(vesselLabels, 1), 7);
     columnNames = {'Vessel Label', 'Centerline', 'Notes', 'Max Vel < 700 cm/s', ...
@@ -62,22 +68,45 @@ function generateSummaryCenterline(LOCs, data_struct, output_path)
         summaryData{i, 1} = vesselLabel;
 
         if isfield(LOCs, locKey)
-            % Extract LOC information
             vesselLOC = LOCs.(locKey);
+            if isempty(vesselLOC) || numel(vesselLOC) < 2
+                fprintf('[generateSummaryCenterline] %s: LOC has < 2 elements -> NaN\n', locKey);
+                summaryData(i, :) = {vesselLabel, NaN, NaN, NaN, NaN, NaN, NaN};
+            else
             summaryData{i, 2} = vesselLOC(2); % Centerline
             summaryData{i, 7} = vesselLOC(1); % Branch Number
-            % Compute other metrics
-            rowIndex = find(data_struct.branchList(:, 4) == vesselLOC(1) & data_struct.branchList(:, 5) == vesselLOC(2));
+            % LOC is (segment_id, centerline_point_index) from ICA/BA/main vessels, or (segment_id, row_index) from resolveLongVenousSegment
+            rowIndex = find(data_struct.branchList(:, 4) == vesselLOC(1) & data_struct.branchList(:, 5) == vesselLOC(2), 1);
+            if isempty(rowIndex) && vesselLOC(2) >= 1 && vesselLOC(2) <= nBranchList
+                % Fallback: vesselLOC(2) may be stored as row index (e.g. venous from resolveLongVenousSegment)
+                if data_struct.branchList(vesselLOC(2), 4) == vesselLOC(1)
+                    rowIndex = vesselLOC(2);
+                    fprintf('[generateSummaryCenterline] %s: used row index fallback (seg=%d, stored value=%d)\n', ...
+                        locKey, vesselLOC(1), vesselLOC(2));
+                end
+            end
             if ~isempty(rowIndex)
-                summaryData{i, 4} = data_struct.maxVel_val(rowIndex) < 700; % Max Vel < 700
-                summaryData{i, 5} = data_struct.flowPerHeartCycle_val(rowIndex); % Mean Flow
-                summaryData{i, 6} = data_struct.PI_val(rowIndex); % Pulsatility Index
+                if rowIndex > nFlow || rowIndex > nPI
+                    fprintf('[generateSummaryCenterline] %s: rowIndex=%d out of range (flow len=%d, PI len=%d) -> NaN\n', ...
+                        locKey, rowIndex, nFlow, nPI);
+                    summaryData{i, 4} = NaN;
+                    summaryData{i, 5} = NaN;
+                    summaryData{i, 6} = NaN;
+                else
+                    summaryData{i, 4} = data_struct.maxVel_val(rowIndex) < 700;
+                    summaryData{i, 5} = data_struct.flowPerHeartCycle_val(rowIndex);
+                    summaryData{i, 6} = data_struct.PI_val(rowIndex);
+                end
             else
+                fprintf('[generateSummaryCenterline] %s: no row match for (seg=%d, centerline/pt=%d); branchList seg range for seg: %s\n', ...
+                    locKey, vesselLOC(1), vesselLOC(2), mat2str(unique(data_struct.branchList(data_struct.branchList(:,4)==vesselLOC(1), 5))));
                 summaryData{i, 4} = NaN;
                 summaryData{i, 5} = NaN;
                 summaryData{i, 6} = NaN;
             end
+            end
         else
+            fprintf('[generateSummaryCenterline] %s: no LOC in struct -> all NaN\n', locKey);
             summaryData(i, :) = {vesselLabel, NaN, NaN, NaN, NaN, NaN, NaN};
         end
     end

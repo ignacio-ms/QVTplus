@@ -768,25 +768,32 @@ function paramMap_GUI(outputDir, update_measurements)
 end
 
 function locInfo = computeLocInfo(locKeys, LOCs, data_struct)
+    % Map each LOC to a branchList row. LOC is (segment_id, centerline_index) for arterial/main
+    % vessels, or (segment_id, row_index) for venous from resolveLongVenousSegment/resolveSSSVSTRV.
     locInfo = struct('key', {}, 'segment', {}, 'clIndex', {}, ...
                      'rowIdx', {}, 'coord', {}, 'flow', {}, ...
                      'PI', {}, 'RI', {});
     branchList = data_struct.branchList;
+    nBranchList = size(branchList, 1);
     for i = 1:numel(locKeys)
         key = locKeys{i};
         entry = LOCs.(key);
         segID = entry(1);
         clIdx = entry(2);
         matchRows = find(branchList(:,4) == segID & branchList(:,5) == clIdx, 1);
+        if isempty(matchRows) && clIdx >= 1 && clIdx <= nBranchList && branchList(clIdx, 4) == segID
+            % Venous: second value is branchList row index (from resolveLongVenousSegment)
+            matchRows = clIdx;
+        end
         if isempty(matchRows)
             warning('paramMap_GUI:MissingBranchRow', ...
                     'No branchList row found for %s (segment %d, index %d).', ...
                     key, segID, clIdx);
             continue;
         end
-        locInfo(end+1).key = key; 
+        locInfo(end+1).key = key;
         locInfo(end).segment = segID;
-        locInfo(end).clIndex = clIdx;
+        locInfo(end).clIndex = branchList(matchRows, 5);
         locInfo(end).rowIdx = matchRows;
         locInfo(end).coord = branchList(matchRows, 1:3);
         locInfo(end).flow = data_struct.flowPerHeartCycle_val(matchRows);
@@ -1769,6 +1776,43 @@ function txt = flowDataTip(~, event_obj, fig)
            ['Flow (FH): ',num2str(vz_val,'%.2f'),' cm/s']};
 end
 
+function [velDir, velMag] = getVelocityAtCoords(appData, coords, frame)
+    % Get 3D velocity direction and magnitude at point(s) from imageData.
+    % coords: Nx3 in branchList order (col1, col2, col3). frame: current time frame (optional; use [] or 0 for mean velocity).
+    % Returns velDir (Nx3 normalized), velMag (Nx1). If no velocity data, velDir = [], velMag = [].
+    velDir = [];
+    velMag = [];
+    if ~isfield(appData, 'imageData')
+        return;
+    end
+    if isfield(appData.imageData, 'V') && ~isempty(appData.imageData.V)
+        vVol = appData.imageData.V;
+    elseif isfield(appData.imageData, 'v') && ~isempty(appData.imageData.v)
+        vVol = appData.imageData.v;
+        if ndims(vVol) == 5 && (isempty(frame) || frame < 1)
+            frame = 1;
+        end
+    else
+        return;
+    end
+    if ndims(vVol) == 5
+        idxT = max(1, min(frame, size(vVol, 5)));
+        vx_vol = vVol(:,:,:,1,idxT);
+        vy_vol = vVol(:,:,:,2,idxT);
+        vz_vol = vVol(:,:,:,3,idxT);
+    else
+        vx_vol = vVol(:,:,:,1);
+        vy_vol = vVol(:,:,:,2);
+        vz_vol = vVol(:,:,:,3);
+    end
+    vx_pts = interp3(vx_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+    vy_pts = interp3(vy_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+    vz_pts = interp3(vz_vol, coords(:,2), coords(:,1), coords(:,3), 'linear', 0);
+    trueDir = [vx_pts, vy_pts, vz_pts];
+    velMag = sqrt(sum(trueDir.^2, 2));
+    velDir = trueDir ./ (velMag + eps);
+end
+
 function updatePlaneOverlay(fig, rowIdx)
     appData = guidata(fig);
     if ~isfield(appData, 'planeLines') || isempty(appData.planeLines) || ...
@@ -1826,18 +1870,27 @@ function updatePlaneOverlay(fig, rowIdx)
         if nNorm > 0
             normalVec = normalVec / nNorm;
         end
-        
-        % Align normal vector with flow direction to avoid false negative flow values
-        % Check flow sign: if negative, flip the normal vector
-        if isfield(appData, 'flowPerHeartCycle_val') && rowIdx <= numel(appData.flowPerHeartCycle_val)
-            flowVal = appData.flowPerHeartCycle_val(rowIdx);
-            if flowVal < 0
-                % Flow is negative, meaning velocity opposes the tangent
-                % Flip the normal to point in the direction of positive flow
-                normalVec = -normalVec;
+
+        % Align normal with velocity direction and sense at this centerline point so the
+        % "Flow direction" arrow matches actual flow (avoids arbitrary tangent sense).
+        frame = [];
+        if isfield(appData, 'currentFrame') && ~isempty(appData.currentFrame)
+            frame = appData.currentFrame;
+        end
+        [velDirPt, velMagPt] = getVelocityAtCoords(appData, centerPt, frame);
+        if ~isempty(velDirPt) && velMagPt(1) > 1e-6
+            % Point normal in the direction of velocity
+            normalVec = velDirPt(1, :);
+        else
+            % Fallback: align with flow sign (negative flow => flip normal)
+            if isfield(appData, 'flowPerHeartCycle_val') && rowIdx <= numel(appData.flowPerHeartCycle_val)
+                flowVal = appData.flowPerHeartCycle_val(rowIdx);
+                if flowVal < 0
+                    normalVec = -normalVec;
+                end
             end
         end
-        
+
         edgeVecs = planeCoords([2 3 4 1],:) - planeCoords([1 2 3 4],:);
         edgeLens = vecnorm(edgeVecs, 2, 2);
         planeScale = mean(edgeLens);
@@ -2244,9 +2297,23 @@ function updateVectors(fig)
         Tips = coords + dirV .* lenFactors;
         
     else
-        % Fallback: Tangent projection (Old)
-        lenFactors = (flowVals / maxVal) * 5 * scaleVal; 
-        Tips = coords + tangents .* lenFactors;
+        % Vectors on, Color by Vel off: use tangent scaled by flow, but align sense with
+        % velocity at each centerline point so arrows point in actual flow direction.
+        frame = 1;
+        if appData.isAnimating || (isfield(appData, 'currentFrame') && ~isempty(appData.currentFrame))
+            frame = appData.currentFrame;
+            if frame < 1 || frame > appData.nframes, frame = 1; end
+        end
+        [velDirAll, velMagAll] = getVelocityAtCoords(appData, coords, frame);
+        if ~isempty(velDirAll)
+            % Use velocity direction for sense; length from |flow|
+            lenFactors = (abs(flowVals) / maxVal) * 5 * scaleVal;
+            Tips = coords + velDirAll .* lenFactors;
+        else
+            % No velocity data: tangent scaled by signed flow (original behavior)
+            lenFactors = (flowVals / maxVal) * 5 * scaleVal;
+            Tips = coords + tangents .* lenFactors;
+        end
     end
     
     % --- Arrow Head Construction ---

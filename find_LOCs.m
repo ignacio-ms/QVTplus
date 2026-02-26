@@ -19,8 +19,8 @@ function varargout = find_LOCs(funcName, varargin)
             varargout{1} = extractSTRV(varargin{:});
         case 'getCircularity'
             varargout{1} = getCircularity(varargin{:});
-        case 'selectLOCByCircularity'
-            varargout{1} = selectLOCByCircularity(varargin{:});
+        case 'selectICAsBASILOC'
+            varargout{1} = selectICAsBASILOC(varargin{:});
         otherwise
             error('Unknown function name: %s', funcName);
     end
@@ -36,11 +36,11 @@ end
 function maxZ = findMaxSingleZ(z_LICA, z_RICA, z_BA, info_LICA, info_RICA, info_BA)
     maxZ = -inf;
     for z = max([z_LICA; z_RICA; z_BA]):-1:min([z_LICA; z_RICA; z_BA])
-        count_LICA = sum(info_LICA(:, 3) == z);
-        count_RICA = sum(info_RICA(:, 3) == z);
-        count_BA = sum(info_BA(:, 3) == z);
+        count_LICA = sum(int32(info_LICA(:, 3)) == z);
+        count_RICA = sum(int32(info_RICA(:, 3)) == z);
+        count_BA = sum(int32(info_BA(:, 3)) == z);
 
-        if count_LICA == 1 && count_RICA == 1 && count_BA == 1
+        if count_LICA >= 1 && count_RICA >= 1 && count_BA >= 1
             maxZ = z;
             break;
         end
@@ -306,174 +306,176 @@ function circularity = getCircularity(data_struct, rowIdx)
     end
 end
 
-function bestLOC = selectLOCByCircularity(candidates, data_struct, fullInfo, minOffset, topOffset)
-    % Select best LOC from candidates based on circularity and flow, avoiding extremes
-    % 
+function bestLOC = selectICAsBASILOC(candidates, data_struct)
+    % Select the best measuring point (LOC) for ICA/BASI from candidate centerline points.
+    %
+    % Strategy (ordered by priority):
+    %   1. EXCLUDE siphon region: ICAs curve upward at their distal end (high Z). Detect the
+    %      siphon onset as the point where cumulative Z starts increasing monotonically after
+    %      the global Z minimum along the segment. Exclude candidates above that threshold.
+    %   2. EXCLUDE area outliers: remove candidates with cross-sectional area outside
+    %      [median - 2*MAD, median + 2*MAD] or below a hard floor (e.g. 0.01 cm^2).
+    %   3. SCORE remaining candidates by:
+    %        - Circularity (diam_val, Rin^2/Rout^2; 1 = perfect circle; higher is better)
+    %        - Velocity magnitude (velMean_val; higher = better SNR / more reliable measurement)
+    %      Both normalized 0–1 and combined with equal weight.
+    %      Tie-break: prefer the candidate closest to the segment midpoint (avoids edges).
+    %
     % Inputs:
-    %   candidates - Candidate points (rows from branchList, N x M matrix)
-    %   data_struct - Data structure with diam_val, flowPerHeartCycle_val, and branchList
-    %   fullInfo - Full branch info for ensureMinZOffset
-    %   minOffset, topOffset - Parameters for ensureMinZOffset
+    %   candidates  - Nx5 matrix of branchList rows [y, x, z, segment_id, point_index]
+    %   data_struct - Structure with branchList, area_val, diam_val, velMean_val
     %
     % Output:
-    %   bestLOC - Best candidate point (full row) or empty if no valid candidates
-    
-    if isempty(candidates)
+    %   bestLOC - 1x5 best candidate row, or empty if no candidates
+
+    if isempty(candidates) || size(candidates, 2) < 5
         bestLOC = [];
         return;
     end
-    
-    % Parameters for avoiding extremes (exclude first/last 20% of centerline)
-    extremeThreshold = 0.2;
-    
-    % Pre-compute segment information to avoid extremes
-    segmentInfo = struct();
-    for i = 1:size(candidates, 1)
-        candidate = candidates(i, :);
-        if size(candidate, 2) < 5
+
+    branchList = data_struct.branchList;
+
+    %% --- Map each candidate to its branchList row index ---
+    nCand = size(candidates, 1);
+    rowIdxs = zeros(nCand, 1);
+    for i = 1:nCand
+        rowIdxs(i) = find(branchList(:,4) == candidates(i,4) & ...
+                          branchList(:,5) == candidates(i,5), 1);
+    end
+    valid = rowIdxs > 0;
+    candidates = candidates(valid, :);
+    rowIdxs = rowIdxs(valid);
+    nCand = size(candidates, 1);
+    if nCand == 0, bestLOC = []; 
+        fprintf('[selectICAsBASILOC] No valid candidates found\n');
+        return; 
+    end
+
+    %% --- Stage 1: Siphon exclusion ---
+    % For each segment, find the Z profile and detect the siphon onset:
+    % the ICA siphon is a U/S-bend where Z rises at the distal end.
+    % We exclude points in the top 70th percentile of Z within their segment,
+    % measured relative to the segment's own Z range.
+    siphonKeep = true(nCand, 1);
+    segIDs = unique(candidates(:, 4));
+    allSegZ = [];
+    for s = 1:numel(segIDs)
+        segMask = branchList(:, 4) == segIDs(s);
+        allSegZ = [allSegZ; branchList(segMask, 3)];
+    end
+
+    siphonKeep = true(nCand, 1);
+    if numel(allSegZ) >= 3
+        zMin = min(allSegZ);
+        zMax = max(allSegZ);
+        zRange = zMax - zMin;
+        if zRange > eps
+            siphonZThresh = zMin + 0.7 * zRange;
+            siphonKeep = candidates(:, 3) <= siphonZThresh;
+        end
+    end
+
+    % If siphon exclusion removes everything, relax: keep all
+    if ~any(siphonKeep)
+        siphonKeep = true(nCand, 1);
+    end
+    candidates = candidates(siphonKeep, :);
+    rowIdxs = rowIdxs(siphonKeep);
+    nCand = size(candidates, 1);
+    if nCand == 0, bestLOC = []; fprintf('[selectICAsBASILOC] No valid candidates after siphon exclusion\n'); return; end
+
+    %% --- Stage 2: Area outlier exclusion ---
+    areaFloor = 0.01;  % cm^2 hard minimum
+    areas = data_struct.area_val(rowIdxs);
+    areas(~isfinite(areas)) = 0;
+
+    medArea = median(areas(areas > 0));
+    madArea = mad(areas(areas > 0), 1);  % median absolute deviation
+    if isempty(medArea) || madArea == 0
+        areaKeep = areas >= areaFloor;
+    else
+        areaKeep = areas >= max(areaFloor, medArea - 4*madArea) & ...
+                   areas <= medArea + 4*madArea;
+    end
+    if ~any(areaKeep), areaKeep = true(nCand, 1); end  % relax if all excluded
+    candidates = candidates(areaKeep, :);
+    rowIdxs = rowIdxs(areaKeep);
+    nCand = size(candidates, 1);
+    if nCand == 0, bestLOC = []; fprintf('[selectICAsBASILOC] No valid candidates after area outlier exclusion\n'); return; end
+
+    %% --- Stage 3: Score by circularity + flow magnitude ---
+    circ = data_struct.diam_val(rowIdxs);
+    % circ = computeAxialCircularity(data_struct, candidates, rowIdxs);
+
+    circ(~isfinite(circ) | circ <= 0) = 0;
+    flow = abs(data_struct.flowPerHeartCycle_val(rowIdxs));
+    flow(~isfinite(flow)) = 0;
+    % Normalize both to [0, 1]
+    maxCirc = max(circ);
+    if maxCirc > 0, normCirc = circ / maxCirc; else, normCirc = zeros(nCand,1); end
+    maxFlow = max(flow);
+    if maxFlow > 0, normFlow = flow / maxFlow; else, normFlow = zeros(nCand,1); end
+    % Weighted combination
+    wCirc = 0.4;
+    wFlow = 0.6;
+    score = wCirc * normCirc + wFlow * normFlow;
+    [~, bestIdx] = max(score);
+    bestLOC = candidates(bestIdx, :);
+    fprintf('[selectICAsBASILOC] Best candidate: %f, %f, %f, %d, %d\n', bestLOC(1), bestLOC(2), bestLOC(3), bestLOC(4), bestLOC(5));
+end
+
+function circ = computeAxialCircularity(data_struct, candidates, rowIdxs)
+    % Compute circularity from the Z-oriented (axial) slice of the binary mask
+    % at each candidate point, instead of the reoriented cross-sectional plane.
+    segVol = data_struct.segment;  % 3D binary mask [dim1 x dim2 x dim3]
+    branchList = data_struct.branchList;
+    nCand = numel(rowIdxs);
+    circ = zeros(nCand, 1);
+
+    for i = 1:nCand
+        coord = round(branchList(rowIdxs(i), 1:3));  % [y, x, z]
+        iy = coord(1); ix = coord(2); iz = coord(3);
+
+        % Bounds check
+        if iz < 1 || iz > size(segVol, 3) || ...
+           iy < 1 || iy > size(segVol, 1) || ix < 1 || ix > size(segVol, 2)
+            circ(i) = 0;
             continue;
         end
-        segID = candidate(4);
-        if ~isfield(segmentInfo, sprintf('seg_%d', segID))
-            % Get all points in this segment
-            segMask = data_struct.branchList(:, 4) == segID;
-            segClIndices = data_struct.branchList(segMask, 5);
-            if ~isempty(segClIndices)
-                minClIdx = min(segClIndices);
-                maxClIdx = max(segClIndices);
-                segLength = maxClIdx - minClIdx + 1;
-                extremeRange = round(segLength * extremeThreshold);
-                segmentInfo.(sprintf('seg_%d', segID)) = struct(...
-                    'minClIdx', minClIdx, ...
-                    'maxClIdx', maxClIdx, ...
-                    'minValidClIdx', minClIdx + extremeRange, ...
-                    'maxValidClIdx', maxClIdx - extremeRange);
-            end
-        end
-    end
-    
-    % Get flow values for normalization
-    validCandidates = [];
-    flowValues = [];
-    circularityValues = [];
-    isExtremeFlags = [];
-    
-    for i = 1:size(candidates, 1)
-        candidate = candidates(i, :);
-        
-        if size(candidate, 2) < 5
-            continue; % Invalid candidate row
-        end
-        
-        % Apply ensureMinZOffset constraint
-        candidate = find_LOCs('ensureMinZOffset', fullInfo, candidate, minOffset, topOffset);
-        
-        % Find row index in branchList
-        segID = candidate(4);
-        clIdx = candidate(5);
-        rowIdx = find(data_struct.branchList(:,4) == segID & ...
-                     data_struct.branchList(:,5) == clIdx, 1);
-        
-        if isempty(rowIdx)
+
+        % Extract axial slice at this Z
+        axSlice = segVol(:, :, iz) > 0;
+        if ~any(axSlice(:))
+            circ(i) = 0;
             continue;
         end
-        
-        % Check if candidate is at extreme of centerline
-        isExtreme = false;
-        segKey = sprintf('seg_%d', segID);
-        if isfield(segmentInfo, segKey)
-            segInfo = segmentInfo.(segKey);
-            if clIdx < segInfo.minValidClIdx || clIdx > segInfo.maxValidClIdx
-                isExtreme = true;
-            end
+
+        % Label connected components and pick the one closest to (y, x)
+        [L, nLabels] = bwlabel(axSlice);
+        if nLabels == 0
+            circ(i) = 0;
+            continue;
         end
-        
-        % Get circularity
-        circularity = getCircularity(data_struct, rowIdx);
-        
-        % Get flow value
-        flow = 0;
-        if isfield(data_struct, 'flowPerHeartCycle_val') && ...
-           rowIdx > 0 && rowIdx <= length(data_struct.flowPerHeartCycle_val)
-            flow = data_struct.flowPerHeartCycle_val(rowIdx);
-            if ~isfinite(flow) || flow < 0
-                flow = 0;
-            end
+        s = regionprops(L, 'Centroid');
+        centroids = reshape([s.Centroid], 2, [])';  % [col, row] per component
+        dists = sqrt((centroids(:,2) - iy).^2 + (centroids(:,1) - ix).^2);
+        [~, closest] = min(dists);
+        component = (L == closest);
+
+        % Compute Rin^2 / Rout^2 (same as segment_cross_section_thresh)
+        D = bwdist(~component);
+        Rin = max(D(:));
+        [xLoc, yLoc] = find(bwperim(component));
+        if isempty(xLoc) || Rin == 0
+            circ(i) = 0;
+            continue;
         end
-        
-        % Store candidate information
-        validCandidates = [validCandidates; candidate];
-        circularityValues = [circularityValues; circularity];
-        flowValues = [flowValues; flow];
-        isExtremeFlags = [isExtremeFlags; isExtreme];
-    end
-    
-    if isempty(validCandidates)
-        % Fallback to first candidate
-        if ~isempty(candidates)
-            bestLOC = candidates(1, :);
-            if size(bestLOC, 2) >= 5
-                bestLOC = find_LOCs('ensureMinZOffset', fullInfo, bestLOC, minOffset, topOffset);
-            end
+        Dperi = pdist2([xLoc, yLoc], [xLoc, yLoc]);
+        Rout = max(Dperi(:)) / 2;
+        if Rout == 0
+            circ(i) = 0;
         else
-            bestLOC = [];
-        end
-        return;
-    end
-    
-    % Normalize circularity and flow values for scoring
-    % Circularity: higher is better (already normalized 0-1 typically)
-    validCircularity = circularityValues(isfinite(circularityValues) & circularityValues > 0);
-    if ~isempty(validCircularity)
-        maxCircularity = max(validCircularity);
-        if maxCircularity > 0
-            normalizedCircularity = circularityValues / maxCircularity;
-        else
-            normalizedCircularity = zeros(size(circularityValues));
-        end
-    else
-        normalizedCircularity = zeros(size(circularityValues));
-    end
-    
-    % Flow: higher is better, normalize to 0-1
-    validFlow = flowValues(isfinite(flowValues) & flowValues > 0);
-    if ~isempty(validFlow)
-        maxFlow = max(validFlow);
-        if maxFlow > 0
-            normalizedFlow = flowValues / maxFlow;
-        else
-            normalizedFlow = zeros(size(flowValues));
-        end
-    else
-        normalizedFlow = zeros(size(flowValues));
-    end
-    
-    % Combined score: weighted combination of circularity and flow
-    % Penalize extreme positions
-    % Weights: 60% circularity, 40% flow (adjustable)
-    circularityWeight = 0.6;
-    flowWeight = 0.4;
-    
-    combinedScore = circularityWeight * normalizedCircularity + flowWeight * normalizedFlow;
-    
-    % Apply penalty for extreme positions (reduce score by 50%)
-    extremePenalty = 0.5;
-    % combinedScore(isExtremeFlags) = combinedScore(isExtremeFlags) * extremePenalty;
-    for i = 1:length(isExtremeFlags)
-        if isExtremeFlags(i)
-            combinedScore(i) = combinedScore(i) * extremePenalty;
-        end
-    end
-    
-    % Find best candidate
-    [~, bestIdx] = max(combinedScore);
-    bestLOC = validCandidates(bestIdx, :);
-    
-    % Final fallback if still no valid candidate
-    if isempty(bestLOC) && ~isempty(candidates)
-        bestLOC = candidates(1, :);
-        if size(bestLOC, 2) >= 5
-            bestLOC = find_LOCs('ensureMinZOffset', fullInfo, bestLOC, minOffset, topOffset);
+            circ(i) = Rin^2 / Rout^2;
         end
     end
 end
