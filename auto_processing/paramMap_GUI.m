@@ -73,18 +73,16 @@ function paramMap_GUI(outputDir, update_measurements)
     end
 
     [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDict, multiQVT);
-    
+    LOCs = normalizeLOCs(LOCs, data_struct.branchList);
+
     % If update_measurements flag is set, regenerate LOCs and update saved tables
     if update_measurements
         disp('paramMap_GUI: Regenerating LOCs and updating measurements...');
         try
-            % Regenerate LOCs (this will use the updated extractSTRV logic)
             [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDict, multiQVT);
-            
-            % Update vessel-specific data tables
+            LOCs = normalizeLOCs(LOCs, data_struct.branchList);
+
             saveVesselData(LOCs, data_struct, outputDir);
-            
-            % Update QVT+ labels file
             generateQVTplus(correspondenceDict, LOCs, outputDir);
             
             disp('paramMap_GUI: Measurements updated successfully.');
@@ -768,23 +766,18 @@ function paramMap_GUI(outputDir, update_measurements)
 end
 
 function locInfo = computeLocInfo(locKeys, LOCs, data_struct)
-    % Map each LOC to a branchList row. LOC is (segment_id, centerline_index) for arterial/main
-    % vessels, or (segment_id, row_index) for venous from resolveLongVenousSegment/resolveSSSVSTRV.
+    % Map each LOC to a branchList row. LOCs are already normalized to (segment_id, centerline_index)
+    % by normalizeLOCs before this function is called.
     locInfo = struct('key', {}, 'segment', {}, 'clIndex', {}, ...
                      'rowIdx', {}, 'coord', {}, 'flow', {}, ...
                      'PI', {}, 'RI', {});
     branchList = data_struct.branchList;
-    nBranchList = size(branchList, 1);
     for i = 1:numel(locKeys)
         key = locKeys{i};
         entry = LOCs.(key);
         segID = entry(1);
         clIdx = entry(2);
         matchRows = find(branchList(:,4) == segID & branchList(:,5) == clIdx, 1);
-        if isempty(matchRows) && clIdx >= 1 && clIdx <= nBranchList && branchList(clIdx, 4) == segID
-            % Venous: second value is branchList row index (from resolveLongVenousSegment)
-            matchRows = clIdx;
-        end
         if isempty(matchRows)
             warning('paramMap_GUI:MissingBranchRow', ...
                     'No branchList row found for %s (segment %d, index %d).', ...
@@ -793,7 +786,7 @@ function locInfo = computeLocInfo(locKeys, LOCs, data_struct)
         end
         locInfo(end+1).key = key;
         locInfo(end).segment = segID;
-        locInfo(end).clIndex = branchList(matchRows, 5);
+        locInfo(end).clIndex = clIdx;
         locInfo(end).rowIdx = matchRows;
         locInfo(end).coord = branchList(matchRows, 1:3);
         locInfo(end).flow = data_struct.flowPerHeartCycle_val(matchRows);
@@ -2688,4 +2681,34 @@ function exportVectorGIF(fig)
     end
     
     guidata(fig, appData);
+end
+
+
+function LOCs = normalizeLOCs(LOCs, branchList)
+    % Ensure every LOC stores (segment_id, centerline_index) where centerline_index is
+    % the value in column 5 of branchList, not a raw row index.
+    nBranchList = size(branchList, 1);
+    locKeys = fieldnames(LOCs);
+    for kk = 1:numel(locKeys)
+        key = locKeys{kk};
+        v = LOCs.(key);
+        if isempty(v) || numel(v) < 2 || ~isfinite(v(1))
+            continue;
+        end
+        seg = v(1);
+        pt = v(2);
+        if ~isempty(find(branchList(:, 4) == seg & branchList(:, 5) == pt, 1))
+            continue;
+        end
+        segRows = find(branchList(:, 4) == seg);
+        if isempty(segRows)
+            continue;
+        end
+        if pt >= 1 && pt <= nBranchList && branchList(pt, 4) == seg
+            LOCs.(key) = [seg, branchList(pt, 5)];
+            continue;
+        end
+        midIdx = max(1, round(numel(segRows) / 2));
+        LOCs.(key) = [seg, branchList(segRows(midIdx), 5)];
+    end
 end

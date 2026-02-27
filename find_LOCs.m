@@ -68,7 +68,13 @@ end
 
 function loc = extractSSSV(segment_ids, data_struct)
     branchList = data_struct.branchList;
-    branchList = branchList(ismember(branchList(:,4), segment_ids), :);  % Restrict to relevant segments
+    branchList = branchList(ismember(branchList(:,4), segment_ids), :);
+
+    % Only consider points inside the 4D flow segmentation mask
+    inMask = isInsideSegmentMask(data_struct, branchList);
+    branchList = branchList(inMask, :);
+    if isempty(branchList), loc = []; return; end
+
     x = branchList(:,1);
     y = branchList(:,2);
     z = branchList(:,3);
@@ -82,7 +88,6 @@ function loc = extractSSSV(segment_ids, data_struct)
     max_thrX = maxX - 0.33 * (maxX - minX);
     posterior_thresh = minY + 0.4 * (maxY - minY);
     superior_thresh = minZ + 0.33 * (maxZ - minZ);
-    % superior_mask  = z < midZ;
     posterior_mask = y <= posterior_thresh;
     superior_mask  = z >= superior_thresh;
 
@@ -125,7 +130,12 @@ end
 
 function loc = extractLateralTSV(segment_ids, data_struct, side)
     branchList = data_struct.branchList;
-    branchList = branchList(ismember(branchList(:,4), segment_ids), :);  % Restrict to relevant segments
+    branchList = branchList(ismember(branchList(:,4), segment_ids), :);
+
+    % Only consider points inside the 4D flow segmentation mask
+    inMask = isInsideSegmentMask(data_struct, branchList);
+    branchList = branchList(inMask, :);
+    if isempty(branchList), loc = []; return; end
 
     x = branchList(:,1); y = branchList(:,2); z = branchList(:,3); val = branchList(:,4);
 
@@ -207,22 +217,18 @@ function loc = extractLateralTSV(segment_ids, data_struct, side)
 end
 
 function loc = extractSTRV(segment_ids, data_struct, sssv_segment_id)
-    % Extract STRV LOC, excluding segments already assigned to SSSV
-    % 
-    % Inputs:
-    %   segment_ids - Segment IDs to consider for STRV
-    %   data_struct - Data structure containing branchList
-    %   sssv_segment_id (optional) - Segment ID already assigned to SSSV (if any)
-    %
-    % Output:
-    %   loc - Location row from branchList for STRV, or empty if no valid segment found
-    
     if nargin < 3
         sssv_segment_id = [];
     end
     
     branchList = data_struct.branchList;
-    branchList = branchList(ismember(branchList(:,4), segment_ids), :);  % Restrict to relevant segments
+    branchList = branchList(ismember(branchList(:,4), segment_ids), :);
+
+    % Only consider points inside the 4D flow segmentation mask
+    inMask = isInsideSegmentMask(data_struct, branchList);
+    branchList = branchList(inMask, :);
+    if isempty(branchList), loc = []; return; end
+
     x = branchList(:,1); y = branchList(:,2); z = branchList(:,3); segment_id = branchList(:,4);
 
     minY = min(y); maxY = max(y);
@@ -276,6 +282,24 @@ function loc = extractSTRV(segment_ids, data_struct, sssv_segment_id)
     center = mean(seg_points(:,1:3), 1);
     [~, idx] = min(sum((seg_points(:,1:3) - center).^2, 2));
     loc = seg_points(idx, :);
+end
+
+function mask = isInsideSegmentMask(data_struct, points)
+    % Check which centerline points lie inside the 4D flow segmentation mask.
+    % points: Nx5 branchList rows [y, x, z, seg_id, cl_idx] (or Nx3 [y, x, z]).
+    % Returns logical Nx1 mask: true if data_struct.segment(round(y), round(x), round(z)) > 0.
+    segVol = data_struct.segment;
+    dims = size(segVol);
+    n = size(points, 1);
+    mask = false(n, 1);
+    for i = 1:n
+        iy = round(points(i, 1));
+        ix = round(points(i, 2));
+        iz = round(points(i, 3));
+        if iy >= 1 && iy <= dims(1) && ix >= 1 && ix <= dims(2) && iz >= 1 && iz <= dims(3)
+            mask(i) = segVol(iy, ix, iz) > 0;
+        end
+    end
 end
 
 function circularity = getCircularity(data_struct, rowIdx)

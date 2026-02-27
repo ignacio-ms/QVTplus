@@ -133,6 +133,7 @@ function [correspondenceDict, LOCs] = generateLOCs(data_struct, correspondenceDi
     LOCs = resolveLongVenousSegment(LOCs, data_struct, 'RTSV');
     LOCs = resolveLongVenousSegment(LOCs, data_struct, 'LTSV');
     LOCs = resolveSSSVSTRV(LOCs, data_struct);
+    LOCs = validateSSSVSTRVSwap(LOCs, data_struct);
 
     fprintf('[generateLOCs] Venous LOCs after resolving long venous segments:\n');
     if isfield(LOCs, 'SSSV')
@@ -220,62 +221,43 @@ function LOCs = resolveLongVenousSegment(LOCs, data_struct, fieldName)
             shared_seg_id = LOCs.SSSV(1);
             branchList = data_struct.branchList;
             all_points = branchList(branchList(:, 4) == shared_seg_id, :);
-            n_points = size(all_points, 1);
-
-            step = floor(n_points / 6);
-            parts = cell(6, 1);
-            for i = 1:6
-                idx_start = (i - 1) * step + 1;
-                if i < 6
-                    idx_end = i * step;
-                else
-                    idx_end = n_points;
-                end
-                parts{i} = all_points(idx_start:idx_end, :);
-            end
+            parts = splitIntoParts(all_points, 6);
 
             % Most vertical (FIRST 3)
             best_vert_score = -Inf;
             best_vert_idx = NaN;
             for i = 1:3
-                p = parts{i};
-                score = std(p(:, 3));
+                score = std(parts{i}(:, 3));
                 if score > best_vert_score
                     best_vert_score = score;
                     best_vert_idx = i;
                 end
             end
-            vert_part = parts{best_vert_idx};
-            mid_idx = floor(size(vert_part, 1) / 2);
-            SSSV_point = vert_part(mid_idx, :);
-            [~, SSSV_row_idx] = min(sum(abs(branchList - SSSV_point), 2));
-            LOCs.SSSV = [shared_seg_id, SSSV_row_idx];
+            SSSV_row = pickMaskedMidpoint(parts{best_vert_idx}, branchList, data_struct);
+            LOCs.SSSV = [shared_seg_id, SSSV_row];
 
             % Most horizontal (LAST 3)
             best_horiz_score = Inf;
             best_horiz_idx = NaN;
             for i = 4:6
-                p = parts{i};
-                score = std(p(:, 3));  % low std(Z) → horizontal
+                score = std(parts{i}(:, 3));
                 if score < best_horiz_score
                     best_horiz_score = score;
                     best_horiz_idx = i;
                 end
             end
-            horiz_part = parts{best_horiz_idx};
-            mid_idx = floor(size(horiz_part, 1) / 2);
-            target_point = horiz_part(mid_idx, :);
-            [~, row_idx] = min(sum(abs(branchList - target_point), 2));
-            LOCs.(fieldName) = [shared_seg_id, row_idx];
+            other_row = pickMaskedMidpoint(parts{best_horiz_idx}, branchList, data_struct);
+            LOCs.(fieldName) = [shared_seg_id, other_row];
         end
     end
 end
 
 
 function LOCs = resolveSSSVSTRV(LOCs, data_struct)
-    % When SSSV and STRV share the same segment, resolve to distinct points by Y (RAS):
-    % SSSV = higher Y (more vertical, more proximal to bottom limit); STRV = lower Y (~45–90°, less vertical).
-    % branchList cols: (y, x, z, segment_id, point_index) -> col 1 = Y
+    % When SSSV and STRV share the same segment, resolve to distinct points using
+    % principal direction (SVD): STRV is more diagonal/vertical (~45-90°, aligned with
+    % [0,1,1]), SSSV is more horizontal (runs along AP at the top of the brain).
+    % This is orientation-independent unlike a simple Y split.
     if ~isfield(LOCs, 'SSSV') || ~isfield(LOCs, 'STRV')
         return;
     end
@@ -285,32 +267,145 @@ function LOCs = resolveSSSVSTRV(LOCs, data_struct)
     shared_seg_id = LOCs.SSSV(1);
     branchList = data_struct.branchList;
     all_points = branchList(branchList(:, 4) == shared_seg_id, :);
-    n_points = size(all_points, 1);
+    parts = splitIntoParts(all_points, 6);
 
-    step = floor(n_points / 6);
-    parts = cell(6, 1);
-    for i = 1:6
+    % STRV expected direction: diagonal in Y-Z plane (~45°), same as extractSTRV
+    strv_expected = [0; 1; 1];
+    strv_expected = strv_expected / norm(strv_expected);
+
+    % Score each part by alignment with STRV direction (higher = more STRV-like)
+    nParts = numel(parts);
+    alignment = zeros(nParts, 1);
+    for i = 1:nParts
+        pts = parts{i}(:, 1:3);
+        if size(pts, 1) < 3
+            alignment(i) = 0;
+            continue;
+        end
+        centered = pts - mean(pts);
+        [~, ~, V] = svd(centered, 'econ');
+        direction = V(:, 1);
+        alignment(i) = abs(dot(direction, strv_expected));
+    end
+
+    % STRV = most aligned with diagonal direction; SSSV = least aligned (most horizontal)
+    [~, strv_idx] = max(alignment);
+    [~, sssv_idx] = min(alignment);
+
+    % Avoid assigning both to the same part
+    if strv_idx == sssv_idx
+        sorted_align = sort(alignment);
+        sssv_idx = find(alignment == sorted_align(1), 1);
+        strv_idx = find(alignment == sorted_align(end), 1);
+    end
+
+    SSSV_clIdx = pickMaskedMidpoint(parts{sssv_idx}, branchList, data_struct);
+    STRV_clIdx = pickMaskedMidpoint(parts{strv_idx}, branchList, data_struct);
+    LOCs.SSSV = [shared_seg_id, SSSV_clIdx];
+    LOCs.STRV = [shared_seg_id, STRV_clIdx];
+end
+
+
+function LOCs = validateSSSVSTRVSwap(LOCs, data_struct)
+    % Check if SSSV and STRV LOCs are swapped by comparing the local centerline
+    % direction at each LOC against expected anatomy:
+    %   STRV: diagonal/vertical (~45-90°), aligned with [0,1,1]
+    %   SSSV: more horizontal (runs along AP at top of brain), low alignment with [0,1,1]
+    % If the SSSV LOC sits in a STRV-like direction and vice versa, swap them.
+    if ~isfield(LOCs, 'SSSV') || ~isfield(LOCs, 'STRV')
+        return;
+    end
+    branchList = data_struct.branchList;
+    strv_expected = [0; 1; 1];
+    strv_expected = strv_expected / norm(strv_expected);
+
+    sssv_align = localDirectionAlignment(LOCs.SSSV, branchList, strv_expected);
+    strv_align = localDirectionAlignment(LOCs.STRV, branchList, strv_expected);
+
+    % STRV should have HIGHER alignment with [0,1,1] than SSSV
+    if sssv_align > strv_align
+        fprintf('[validateSSSVSTRVSwap] Swapping SSSV and STRV (SSSV alignment=%.3f > STRV alignment=%.3f)\n', ...
+            sssv_align, strv_align);
+        tmp = LOCs.SSSV;
+        LOCs.SSSV = LOCs.STRV;
+        LOCs.STRV = tmp;
+    end
+end
+
+
+function align = localDirectionAlignment(loc, branchList, expected_dir)
+    % Compute alignment of the local centerline direction at a LOC point with an expected direction.
+    % Uses a window of ±5 neighboring points along the same segment to estimate direction via SVD.
+    seg = loc(1);
+    clIdx = loc(2);
+    segRows = find(branchList(:, 4) == seg);
+    rowMatch = find(branchList(:, 4) == seg & branchList(:, 5) == clIdx, 1);
+    if isempty(rowMatch)
+        align = 0;
+        return;
+    end
+    pos = find(segRows == rowMatch);
+    if isempty(pos)
+        align = 0;
+        return;
+    end
+    window = 5;
+    lo = max(1, pos - window);
+    hi = min(numel(segRows), pos + window);
+    neighborRows = segRows(lo:hi);
+    pts = branchList(neighborRows, 1:3);
+    if size(pts, 1) < 3
+        align = 0;
+        return;
+    end
+    centered = pts - mean(pts);
+    [~, ~, V] = svd(centered, 'econ');
+    direction = V(:, 1);
+    align = abs(dot(direction, expected_dir));
+end
+
+
+function parts = splitIntoParts(all_points, nParts)
+    n_points = size(all_points, 1);
+    step = floor(n_points / nParts);
+    parts = cell(nParts, 1);
+    for i = 1:nParts
         idx_start = (i - 1) * step + 1;
-        if i < 6
+        if i < nParts
             idx_end = i * step;
         else
             idx_end = n_points;
         end
         parts{i} = all_points(idx_start:idx_end, :);
     end
+end
 
-    meanY = cellfun(@(p) mean(p(:, 1)), parts);
-    [~, highY_idx] = max(meanY);
-    [~, lowY_idx] = min(meanY);
-    high_part = parts{highY_idx};
-    low_part = parts{lowY_idx};
-    mid_high = floor(size(high_part, 1) / 2);
-    mid_low = floor(size(low_part, 1) / 2);
-    SSSV_point = high_part(mid_high, :);
-    STRV_point = low_part(mid_low, :);
-    [~, SSSV_row_idx] = min(sum(abs(branchList - SSSV_point), 2));
-    [~, STRV_row_idx] = min(sum(abs(branchList - STRV_point), 2));
-    LOCs.SSSV = [shared_seg_id, SSSV_row_idx];
-    LOCs.STRV = [shared_seg_id, STRV_row_idx];
+
+function row_idx = pickMaskedMidpoint(part_points, branchList, data_struct)
+    % From a segment part, pick the point closest to the midpoint that is inside the
+    % 4D flow segmentation mask. Falls back to geometric midpoint if none are in-mask.
+    segVol = data_struct.segment;
+    dims = size(segVol);
+    n = size(part_points, 1);
+    inMask = false(n, 1);
+    for i = 1:n
+        iy = round(part_points(i, 1));
+        ix = round(part_points(i, 2));
+        iz = round(part_points(i, 3));
+        if iy >= 1 && iy <= dims(1) && ix >= 1 && ix <= dims(2) && iz >= 1 && iz <= dims(3)
+            inMask(i) = segVol(iy, ix, iz) > 0;
+        end
+    end
+
+    if any(inMask)
+        masked_pts = part_points(inMask, :);
+        mid_idx = floor(size(masked_pts, 1) / 2);
+        mid_idx = max(1, mid_idx);
+        chosen_point = masked_pts(mid_idx, :);
+    else
+        mid_idx = max(1, floor(n / 2));
+        chosen_point = part_points(mid_idx, :);
+    end
+    [~, row_idx] = min(sum(abs(branchList - chosen_point), 2));
 end
 

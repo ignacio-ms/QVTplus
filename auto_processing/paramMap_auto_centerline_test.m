@@ -32,12 +32,12 @@ function paramMap_auto_centerline_test(outputDir, varargin)
     set(0, 'DefaultFigureVisible', 'off')
 
     if nargin < 1 || isempty(outputDir)
-        outputDir = '/data_local/LabVF/PESA-Brain/RESULTS/Auxiliary/QVTPlus_ReLOCs/PESA15792676/'; % PESA15792676/
+        outputDir = '/data_local/LabVF/PESA-Brain/RESULTS/Auxiliary/QVTPlus_ReLOCs/'; % PESA15792676/
     end
     outputDir = char(outputDir);
     if ~exist(outputDir, 'dir')
         error('paramMap_auto_centerline_test:DirectoryNotFound', 'Output directory not found: %s', outputDir);
-    end
+    end  
 
     matInRoot = dir(fullfile(outputDir, 'qvtData_ISOfix_*.mat'));
     if ~isempty(matInRoot)
@@ -384,6 +384,11 @@ function paramMap_auto_centerline_test(outputDir, varargin)
         if ~isempty(PIvel_val)
             data_struct_new.PIvel_val = PIvel_val;
         end
+
+        % Update Vel_Time_Res with the new centerline's time-resolved velocity planes
+        Vel_Time_Res.VplanesAllx = VplanesAllx;
+        Vel_Time_Res.VplanesAlly = VplanesAlly;
+        Vel_Time_Res.VplanesAllz = VplanesAllz;
 
         caseFilePath = fullfile(centerlineTestDir, ['qvtData_ISOfix_centerline_' datestr(now, 'ddmmmyyyy_HHMM') '.mat']);
         data_struct = data_struct_new;
